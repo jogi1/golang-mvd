@@ -46,6 +46,7 @@ type Mvd struct {
 	demo        demo
 	players     [32]Player
 	mapname     string
+	hostname    string
 }
 
 func main() {
@@ -95,6 +96,7 @@ func main() {
 	fmt.Printf("{\n")
 	fmt.Printf("\t\"map_name\": \"%s\",\n", sanatize_map_name(mvd.mapname))
 	fmt.Printf("\t\"map_file\": \"%s\",\n", mvd.demo.modellist[0])
+	fmt.Printf("\t\"hostname\": \"%s\",\n", mvd.hostname)
 	fmt.Printf("\t\"players\": [\n")
 	first := true
 	for _, p := range mvd.players {

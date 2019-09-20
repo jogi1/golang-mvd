@@ -418,6 +418,9 @@ func (message *Message) Svc_print(mvd *Mvd) {
 func (message *Message) Svc_serverinfo(mvd *Mvd) {
 	key := message.ReadString()
 	value := message.ReadString()
+	if key == "hostname" {
+		mvd.hostname = value
+	}
 	mvdPrint(key, value)
 }
 
