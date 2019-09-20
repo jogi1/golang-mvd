@@ -263,13 +263,25 @@ func (message *Message) Svc_lightstyle(mvd *Mvd) {
 }
 
 func (message *Message) Svc_updatestatlong(mvd *Mvd) {
-	message.ReadByte()
-	message.ReadLong()
+	stat := STAT_TYPE(message.ReadByte())
+	value := message.ReadLong()
+	p := &mvd.players[mvd.demo.last_to]
+	if stat == STAT_HEALTH {
+		if value <= 0 {
+			p.deaths += 1
+		}
+	}
 }
 
 func (message *Message) Svc_updatestat(mvd *Mvd) {
-	message.ReadByte()
-	message.ReadByte()
+	stat := STAT_TYPE(message.ReadByte())
+	value := message.ReadByte()
+	p := &mvd.players[mvd.demo.last_to]
+	if stat == STAT_HEALTH {
+		if value <= 0 {
+			p.deaths += 1
+		}
+	}
 }
 
 func (message *Message) Svc_deltapacketentities(mvd *Mvd) {

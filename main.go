@@ -30,6 +30,7 @@ type Player struct {
 	frags     int
 	userid    int
 	spectator bool
+	deaths    int
 }
 
 type Mvd struct {
@@ -95,16 +96,16 @@ func main() {
 	fmt.Printf("\t\"map_name\": \"%s\",\n", sanatize_map_name(mvd.mapname))
 	fmt.Printf("\t\"map_file\": \"%s\",\n", mvd.demo.modellist[0])
 	fmt.Printf("\t\"players\": [\n")
-	first := true 
+	first := true
 	for _, p := range mvd.players {
 		if len(p.name) == 0 || p.spectator == true {
 			continue
 		}
 		if first == false {
-		  fmt.Printf(",\n")
+			fmt.Printf(",\n")
 		}
 		if first == true {
-		  first = false
+			first = false
 		}
 		fmt.Printf("\t\t{\n")
 		fmt.Printf("\t\t\"name_sanatized\": \"%s\",\n", sanatize_name(p.name))
@@ -112,6 +113,7 @@ func main() {
 		fmt.Printf("\t\t\"team_sanatized\": \"%s\",\n", sanatize_name(p.team))
 		fmt.Printf("\t\t\"team_int\": \"%s\",\n", int_name(p.team))
 		fmt.Printf("\t\t\"frags\": \"%d\"\n", p.frags)
+		fmt.Printf("\t\t\"deaths\": \"%d\"\n", p.deaths)
 		fmt.Printf("\t\t}")
 	}
 	fmt.Println("\n")

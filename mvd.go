@@ -36,17 +36,20 @@ func (mvd *Mvd) Frame() {
 func (mvd *Mvd) ReadFrame() bool {
 	for {
 		mvd.demotime()
-		cmd := DEM_TYPE(mvd.ReadByte() & 7)
-		if cmd == dem_cmd {
+		cmd := mvd.ReadByte()
+		msg_type := DEM_TYPE(cmd & 7)
+		if msg_type == dem_cmd {
 			mvd.Error.Panic("this is an mvd parser")
 		}
 
 		//mvd.Debug.Println("handling cmd", DEM_TYPE(cmd))
-		if cmd >= dem_multiple && cmd <= dem_all {
-			switch cmd {
+		if msg_type >= dem_multiple && msg_type <= dem_all {
+			switch msg_type {
 			case dem_multiple:
 				{
-					mvd.demo.last_to = uint(mvd.ReadUint())
+					i := mvd.ReadInt()
+					//mvd.demo.last_to = uint(mvd.ReadUint())
+					mvd.demo.last_to = uint(i)
 					//mvd.Debug.Println("affected players: ", strconv.FormatInt(int64(mvd.demo.last_to), 2), mvd.demo.last_to)
 					mvd.demo.last_type = dem_multiple
 					break
@@ -73,20 +76,20 @@ func (mvd *Mvd) ReadFrame() bool {
 					break
 				}
 			}
-			cmd = dem_read
+			msg_type = dem_read
 		}
-		if cmd == dem_set {
+		if msg_type == dem_set {
 			//mvd.Debug.Println("dem_set", mvd.file_offset)
 			mvd.demo.outgoing_sequence = mvd.ReadUint()
 			mvd.demo.incoming_sequence = mvd.ReadUint()
 			//mvd.Debug.Printf("Squence in(%v) out(%v)", mvd.demo.incoming_sequence, mvd.demo.outgoing_sequence)
 			continue
 		}
-		if cmd == dem_read {
-			b := mvd.ReadIt(cmd)
+		if msg_type == dem_read {
+			b := mvd.ReadIt(msg_type)
 			for b == true {
 				//mvd.Debug.Println("did we loop?")
-				b = mvd.ReadIt(cmd)
+				b = mvd.ReadIt(msg_type)
 			}
 			return true
 		}

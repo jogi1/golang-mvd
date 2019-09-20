@@ -177,3 +177,27 @@ const (
 	TE_BLOOD          = 12
 	TE_LIGHTNINGBLOOD = 13
 )
+
+//go:generate stringer -type=STAT_TYPE
+type STAT_TYPE int
+
+const (
+	STAT_HEALTH        STAT_TYPE = 0
+	STAT_FRAGS         STAT_TYPE = 1
+	STAT_WEAPON        STAT_TYPE = 2
+	STAT_AMMO          STAT_TYPE = 3
+	STAT_ARMOR         STAT_TYPE = 4
+	STAT_WEAPONFRAME   STAT_TYPE = 5
+	STAT_SHELLS        STAT_TYPE = 6
+	STAT_NAILS         STAT_TYPE = 7
+	STAT_ROCKETS       STAT_TYPE = 8
+	STAT_CELLS         STAT_TYPE = 9
+	STAT_ACTIVEWEAPON  STAT_TYPE = 10
+	STAT_TOTALSECRETS  STAT_TYPE = 11
+	STAT_TOTALMONSTERS STAT_TYPE = 12
+	STAT_SECRETS       STAT_TYPE = 13 // bumped on client side by svc_foundsecret
+	STAT_MONSTERS      STAT_TYPE = 14 // bumped by svc_killedmonster
+	STAT_ITEMS         STAT_TYPE = 15
+	STAT_VIEWHEIGHT    STAT_TYPE = 16 // Z_EXT_VIEWHEIGHT protocol extension
+	STAT_TIME          STAT_TYPE = 17 // Z_EXT_TIME extension
+)
