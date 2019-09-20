@@ -92,22 +92,30 @@ func main() {
 	mvd.Parse("")
 
 	fmt.Printf("{\n")
-	fmt.Printf("\t\"map_name\": \"%s\"\n", sanatize_map_name(mvd.mapname))
-	fmt.Printf("\t\"map_file\": \"%s\"\n", mvd.demo.modellist[0])
-	fmt.Printf("\t\"players\": {\n")
+	fmt.Printf("\t\"map_name\": \"%s\",\n", sanatize_map_name(mvd.mapname))
+	fmt.Printf("\t\"map_file\": \"%s\",\n", mvd.demo.modellist[0])
+	fmt.Printf("\t\"players\": [\n")
+	first := true 
 	for _, p := range mvd.players {
 		if len(p.name) == 0 || p.spectator == true {
 			continue
 		}
+		if first == false {
+		  fmt.Printf(",\n")
+		}
+		if first == true {
+		  first = false
+		}
 		fmt.Printf("\t\t{\n")
-		fmt.Printf("\t\t\"name_sanatized\": \"%s\"\n", sanatize_name(p.name))
-		fmt.Printf("\t\t\"name_int\": \"%s\"\n", int_name(p.name))
-		fmt.Printf("\t\t\"team_sanatized\": \"%s\"\n", sanatize_name(p.team))
-		fmt.Printf("\t\t\"team_int\": \"%s\"\n", int_name(p.team))
+		fmt.Printf("\t\t\"name_sanatized\": \"%s\",\n", sanatize_name(p.name))
+		fmt.Printf("\t\t\"name_int\": \"%s\",\n", int_name(p.name))
+		fmt.Printf("\t\t\"team_sanatized\": \"%s\",\n", sanatize_name(p.team))
+		fmt.Printf("\t\t\"team_int\": \"%s\",\n", int_name(p.team))
 		fmt.Printf("\t\t\"frags\": \"%d\"\n", p.frags)
-		fmt.Printf("\t\t}\n")
+		fmt.Printf("\t\t}")
 	}
-	fmt.Printf("\t}\n")
+	fmt.Println("\n")
+	fmt.Printf("\t]\n")
 	fmt.Printf("}\n")
 
 	os.Exit(1)
