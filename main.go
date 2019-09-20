@@ -112,7 +112,7 @@ func main() {
 		fmt.Printf("\t\t\"name_int\": \"%s\",\n", int_name(p.name))
 		fmt.Printf("\t\t\"team_sanatized\": \"%s\",\n", sanatize_name(p.team))
 		fmt.Printf("\t\t\"team_int\": \"%s\",\n", int_name(p.team))
-		fmt.Printf("\t\t\"frags\": \"%d\"\n", p.frags)
+		fmt.Printf("\t\t\"frags\": \"%d\",\n", p.frags)
 		fmt.Printf("\t\t\"deaths\": \"%d\"\n", p.deaths)
 		fmt.Printf("\t\t}")
 	}
