@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"github.com/robertkrimen/otto"
 	"io"
 	"io/ioutil"
 	"log"
@@ -25,12 +26,19 @@ type demo struct {
 }
 
 type Player struct {
-	name      string
-	team      string
-	frags     int
-	userid    int
-	spectator bool
-	deaths    int
+	Name      string
+	Team      string
+	Frags     int
+	Userid    int
+	Spectator bool
+	Deaths    int
+}
+
+type mvd_state struct {
+	Players  [32]Player
+	Mapname  string
+	Mapfile  string
+	Hostname string
 }
 
 type Mvd struct {
@@ -38,15 +46,16 @@ type Mvd struct {
 	Error *log.Logger
 	Debug *log.Logger
 
-	file        []byte
-	file_offset uint
-	filename    string
-	frame       uint
-	done        bool
-	demo        demo
-	players     [32]Player
-	mapname     string
-	hostname    string
+	file           []byte
+	file_offset    uint
+	filename       string
+	frame          uint
+	done           bool
+	demo           demo
+	vm             *otto.Otto
+	vm_initialized bool
+
+	state mvd_state
 }
 
 func main() {
@@ -83,7 +92,7 @@ func main() {
 		io.Copy(buf, rc)
 
 		mvd.file = buf.Bytes()
-		fmt.Println("loading ", f.Name, " from zip")
+		//fmt.Println("loading ", f.Name, " from zip")
 	} else {
 		mvd.file, err = ioutil.ReadFile(os.Args[1])
 		if err != nil {
@@ -91,37 +100,21 @@ func main() {
 		}
 	}
 
-	mvd.Parse("")
-
-	fmt.Printf("{\n")
-	fmt.Printf("\t\"map_name\": \"%s\",\n", sanatize_map_name(mvd.mapname))
-	fmt.Printf("\t\"map_file\": \"%s\",\n", mvd.demo.modellist[0])
-	fmt.Printf("\t\"hostname\": \"%s\",\n", mvd.hostname)
-	fmt.Printf("\t\"players\": [\n")
-	first := true
-	for _, p := range mvd.players {
-		if len(p.name) == 0 || p.spectator == true {
-			continue
+	script, err := ioutil.ReadFile("runme.js")
+	if err != nil {
+		s, err := Asset("data/default.js")
+		if err != nil {
+			mvd.Error.Fatal(err)
 		}
-		if first == false {
-			fmt.Printf(",\n")
-		}
-		if first == true {
-			first = false
-		}
-		fmt.Printf("\t\t{\n")
-		fmt.Printf("\t\t\"name_sanatized\": \"%s\",\n", sanatize_name(p.name))
-		fmt.Printf("\t\t\"name_int\": \"%s\",\n", int_name(p.name))
-		fmt.Printf("\t\t\"team_sanatized\": \"%s\",\n", sanatize_name(p.team))
-		fmt.Printf("\t\t\"team_int\": \"%s\",\n", int_name(p.team))
-		fmt.Printf("\t\t\"frags\": \"%d\",\n", p.frags)
-		fmt.Printf("\t\t\"deaths\": \"%d\"\n", p.deaths)
-		fmt.Printf("\t\t}")
+		mvd.InitVM(s, "default.js")
+	} else {
+		mvd.InitVM(script, "runme.js")
 	}
-	fmt.Println("\n")
-	fmt.Printf("\t]\n")
-	fmt.Printf("}\n")
 
+	mvd.Parse("")
+	mvd.state.Mapfile = mvd.demo.modellist[0]
+
+	mvd.VmDemoFinished()
 	os.Exit(1)
 }
 

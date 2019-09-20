@@ -76,7 +76,7 @@ func (message *Message) Svc_serverdata(mvd *Mvd) {
 	mvdPrint("server count: ", message.ReadLong())
 	mvdPrint("gamedir: ", message.ReadString())
 	mvdPrint("demotime: ", message.ReadFloat())
-	mvd.mapname = message.ReadString()
+	mvd.state.Mapname = message.ReadString()
 	for i := 0; i < 10; i++ {
 		//fmt.Printf("movevar(%v): %v\n", i, message.ReadFloat())
 		message.ReadFloat()
@@ -137,7 +137,7 @@ func (message *Message) Svc_spawnbaseline(mvd *Mvd) {
 func (message *Message) Svc_updatefrags(mvd *Mvd) {
 	player := message.ReadByte()
 	frags := message.ReadShort()
-	mvd.players[int(player)].frags = int(frags)
+	mvd.state.Players[int(player)].Frags = int(frags)
 }
 
 func (message *Message) Svc_playerinfo(mvd *Mvd) {
@@ -199,8 +199,8 @@ func (message *Message) Svc_updateentertime(mvd *Mvd) {
 func (message *Message) Svc_updateuserinfo(mvd *Mvd) {
 	p := message.ReadByte()   // num
 	uid := message.ReadLong() // userid
-	player := &mvd.players[p]
-	player.userid = uid
+	player := &mvd.state.Players[p]
+	player.Userid = uid
 	ui := message.ReadString()
 	if len(ui) < 2 {
 		return
@@ -211,12 +211,12 @@ func (message *Message) Svc_updateuserinfo(mvd *Mvd) {
 		v := splits[i+1]
 		switch splits[i] {
 		case "name":
-			player.name = v
+			player.Name = v
 		case "team":
-			player.team = v
+			player.Team = v
 		case "*spectator":
 			if v == "1" {
-				player.spectator = true
+				player.Spectator = true
 			}
 		}
 	}
@@ -265,10 +265,10 @@ func (message *Message) Svc_lightstyle(mvd *Mvd) {
 func (message *Message) Svc_updatestatlong(mvd *Mvd) {
 	stat := STAT_TYPE(message.ReadByte())
 	value := message.ReadLong()
-	p := &mvd.players[mvd.demo.last_to]
+	p := &mvd.state.Players[mvd.demo.last_to]
 	if stat == STAT_HEALTH {
 		if value <= 0 {
-			p.deaths += 1
+			p.Deaths += 1
 		}
 	}
 }
@@ -276,10 +276,10 @@ func (message *Message) Svc_updatestatlong(mvd *Mvd) {
 func (message *Message) Svc_updatestat(mvd *Mvd) {
 	stat := STAT_TYPE(message.ReadByte())
 	value := message.ReadByte()
-	p := &mvd.players[mvd.demo.last_to]
+	p := &mvd.state.Players[mvd.demo.last_to]
 	if stat == STAT_HEALTH {
 		if value <= 0 {
-			p.deaths += 1
+			p.Deaths += 1
 		}
 	}
 }
@@ -419,7 +419,7 @@ func (message *Message) Svc_serverinfo(mvd *Mvd) {
 	key := message.ReadString()
 	value := message.ReadString()
 	if key == "hostname" {
-		mvd.hostname = value
+		mvd.state.Hostname = value
 	}
 	mvdPrint(key, value)
 }
