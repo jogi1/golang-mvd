@@ -25,20 +25,94 @@ type demo struct {
 	mvd_pext                             MVD_PROTOCOL_EXTENSION
 }
 
+type Vector struct {
+	X, Y, Z float32
+}
+
+func (v *Vector) Set(x, y, z float32) {
+	v.X = x
+	v.Y = y
+	v.Z = z
+}
+
+type PE_Info struct {
+	events PE_TYPE
+	pnum   byte
+}
+
+type Weapon_Stat struct {
+	Pickup, Drop, Damage int
+}
+
+type Armor_Stat struct {
+	Pickup, Damage_Absorbed int
+}
+
+type Item_Stat struct {
+	Pickup, Drop int
+}
+
+type Itemstats struct {
+	Axe, Shotgun, SuperShotgun, NailGun, SuperNailGun, GrenadeLauncher, RocketLauncher, LightningGun Weapon_Stat
+	GreenArmor, YellowArmor, RedArmor                                                                Armor_Stat
+	MegaHealth, Quad, Pentagram                                                                      Item_Stat
+}
+
 type Player struct {
-	Name      string
-	Team      string
-	Frags     int
-	Userid    int
-	Spectator bool
-	Deaths    int
+	event_info  PE_Info
+	Name        string
+	Team        string
+	Userid      int
+	Spectator   bool
+	Deaths      int
+	Origin      Vector
+	Angle       Vector
+	ModelIndex  byte
+	SkinNum     byte
+	WeaponFrame byte
+	Effects     byte
+	Ping        int
+	Pl          byte
+	Entertime   float32
+
+	// stat
+	Health       int
+	Frags        int
+	Weapon       int
+	Ammo         int
+	Armor        int
+	Weaponframe  int
+	Shells       int
+	Nails        int
+	Rockets      int
+	Cells        int
+	Activeweapon int
+	Totalsecrets int
+	Totalmonster int
+	Secrets      int
+	Monsters     int
+	Items        int
+	Viewheight   int
+	Time         int
+
+	Itemstats Itemstats
+}
+
+type Sound struct {
+	Index       byte
+	Channel     SND_TYPE
+	Volume      byte
+	Attenuation byte
+	Origin      Vector
 }
 
 type mvd_state struct {
-	Players  [32]Player
-	Mapname  string
-	Mapfile  string
-	Hostname string
+	Players      [32]Player
+	SoundsActive []Sound
+	SoundsStatic []Sound
+	Mapname      string
+	Mapfile      string
+	Hostname     string
 }
 
 type Mvd struct {
@@ -55,7 +129,8 @@ type Mvd struct {
 	vm             *otto.Otto
 	vm_initialized bool
 
-	state mvd_state
+	state            mvd_state
+	state_last_frame mvd_state
 }
 
 func main() {
@@ -117,6 +192,11 @@ func main() {
 	mvd.state.Mapfile = mvd.demo.modellist[0]
 
 	mvd.VmDemoFinished()
+	for _, p := range mvd.state.Players {
+		if p.Spectator == true {
+			continue
+		}
+	}
 	os.Exit(0)
 }
 

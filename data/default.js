@@ -30,6 +30,8 @@ function on_finish () {
     print(_p(3, "team_int", convert_int(p.Team)), ",\n")
     print(_p(3, "frags", p.Frags), ",\n")
     print(_p(3, "deaths", p.Deaths), ",\n")
+    print("\t\t\"itemstats\": ")
+    print(JSON.stringify(p.Itemstats) + "\n")
     print("\t\t}")
   }
   print("\n\t\]\n")

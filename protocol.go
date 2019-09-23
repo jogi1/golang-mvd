@@ -200,4 +200,39 @@ const (
 	STAT_ITEMS         STAT_TYPE = 15
 	STAT_VIEWHEIGHT    STAT_TYPE = 16 // Z_EXT_VIEWHEIGHT protocol extension
 	STAT_TIME          STAT_TYPE = 17 // Z_EXT_TIME extension
+	STAT_WTF           STAT_TYPE = 18 // Z_EXT_TIME extension
+)
+
+//go:generate
+//stringer -type=IT_TYPE
+type IT_TYPE int
+
+const (
+	IT_SHOTGUN          IT_TYPE = 1
+	IT_SUPER_SHOTGUN    IT_TYPE = 2
+	IT_NAILGUN          IT_TYPE = 4
+	IT_SUPER_NAILGUN    IT_TYPE = 8
+	IT_GRENADE_LAUNCHER IT_TYPE = 16
+	IT_ROCKET_LAUNCHER  IT_TYPE = 32
+	IT_LIGHTNING        IT_TYPE = 64
+	IT_SUPER_LIGHTNING  IT_TYPE = 128
+	IT_SHELLS           IT_TYPE = 256
+	IT_NAILS            IT_TYPE = 512
+	IT_ROCKETS          IT_TYPE = 1024
+	IT_CELLS            IT_TYPE = 2048
+	IT_AXE              IT_TYPE = 4096
+	IT_ARMOR1           IT_TYPE = 8192
+	IT_ARMOR2           IT_TYPE = 16384
+	IT_ARMOR3           IT_TYPE = 32768
+	IT_SUPERHEALTH      IT_TYPE = 65536
+	IT_KEY1             IT_TYPE = 131072
+	IT_KEY2             IT_TYPE = 262144
+	IT_INVISIBILITY     IT_TYPE = 524288
+	IT_INVULNERABILITY  IT_TYPE = 1048576
+	IT_SUIT             IT_TYPE = 2097152
+	IT_QUAD             IT_TYPE = 4194304
+	IT_SIGIL1           IT_TYPE = (1 << 28)
+	IT_SIGIL2           IT_TYPE = (1 << 29)
+	IT_SIGIL3           IT_TYPE = (1 << 30)
+	IT_SIGIL4           IT_TYPE = (1 << 31)
 )

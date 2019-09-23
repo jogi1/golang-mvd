@@ -13,6 +13,12 @@ func (mvd *Mvd) InitVM(script []byte, name string) error {
 		return sanatize_name(in)
 	})
 
+	/*
+		vm.Set("unicode", func(in string) string {
+			return unicode_string(in)
+		})
+	*/
+
 	vm.Set("sanatize_escapes", func(in string) string {
 		return sanatize_map_name(in)
 	})

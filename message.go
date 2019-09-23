@@ -141,66 +141,105 @@ func (message *Message) Svc_updatefrags(mvd *Mvd) {
 }
 
 func (message *Message) Svc_playerinfo(mvd *Mvd) {
-	mvdPrint("num: ", message.ReadByte())
+	var pe_type PE_TYPE
+	pnum := message.ReadByte()
+	p := &mvd.state.Players[pnum]
 	flags := DF_TYPE(message.ReadShort())
-	mvdPrint("flags: ", flags)
 	mvdPrint("frame: ", message.ReadByte())
 	for i := 0; i < 3; i++ {
 		t := DF_ORIGIN << i
 		if flags&t == t {
+			pe_type |= PE_MOVEMENT
 			flags -= t
-			mvdPrint("reading origin ", i)
-			message.ReadCoord()
+			switch i {
+			case 0:
+				{
+					p.Origin.X = message.ReadCoord()
+				}
+			case 1:
+				{
+					p.Origin.Y = message.ReadCoord()
+				}
+			case 2:
+				{
+					p.Origin.Z = message.ReadCoord()
+				}
+			}
 		}
 	}
 	for i := 0; i < 3; i++ {
 		t := DF_ANGLES << i
 		if flags&t == t {
+			pe_type |= PE_MOVEMENT
 			flags -= t
-			mvdPrint("reading angle ", i)
-			message.ReadAngle16()
+			switch i {
+			case 0:
+				{
+					p.Angle.X = message.ReadAngle16()
+				}
+			case 1:
+				{
+					p.Angle.Y = message.ReadAngle16()
+				}
+			case 2:
+				{
+					p.Angle.Z = message.ReadAngle16()
+				}
+			}
 		}
 	}
 
 	mvdPrint(flags)
 
 	if flags&DF_MODEL == DF_MODEL {
-		message.ReadByte() // modelindex
+		pe_type |= PE_ANIMATION
+		p.ModelIndex = message.ReadByte() // modelindex
 	}
 
 	if flags&DF_SKINNUM == DF_SKINNUM {
-		message.ReadByte() // skinnum
+		pe_type |= PE_ANIMATION
+		p.SkinNum = message.ReadByte() // skinnum
 	}
 
 	if flags&DF_EFFECTS == DF_EFFECTS {
-		message.ReadByte() // effects
+		pe_type |= PE_ANIMATION
+		p.Effects = message.ReadByte() // effects
 	}
 
 	if flags&DF_WEAPONFRAME == DF_WEAPONFRAME {
-		message.ReadByte() // weaponframe
+		pe_type |= PE_ANIMATION
+		p.WeaponFrame = message.ReadByte() // weaponframe
 	}
+
+	mvd.EmitEventPlayer(p, pnum, pe_type)
 }
 
 func (message *Message) Svc_updateping(mvd *Mvd) {
-	message.ReadByte()  // num
-	message.ReadShort() // ping
+	pnum := message.ReadByte() // num
+	p := &mvd.state.Players[pnum]
+	p.Ping = message.ReadShort() // ping
+	mvd.EmitEventPlayer(p, pnum, PE_NETWORKINFO)
 }
 
 func (message *Message) Svc_updatepl(mvd *Mvd) {
-	message.ReadByte() // num
-	message.ReadByte() // pl
+	pnum := message.ReadByte() // num
+	p := &mvd.state.Players[pnum]
+	p.Pl = message.ReadByte() // pl
+	mvd.EmitEventPlayer(p, pnum, PE_NETWORKINFO)
 }
 
 func (message *Message) Svc_updateentertime(mvd *Mvd) {
-	message.ReadByte()  // num
-	message.ReadFloat() // entertime
+	pnum := message.ReadByte() // num
+	p := &mvd.state.Players[pnum]
+	p.Entertime = message.ReadFloat() // entertime
+	mvd.EmitEventPlayer(p, pnum, PE_NETWORKINFO)
 }
 
 func (message *Message) Svc_updateuserinfo(mvd *Mvd) {
-	p := message.ReadByte()   // num
-	uid := message.ReadLong() // userid
-	player := &mvd.state.Players[p]
-	player.Userid = uid
+	pnum := message.ReadByte() // num
+	uid := message.ReadLong()  // userid
+	p := &mvd.state.Players[pnum]
+	p.Userid = uid
 	ui := message.ReadString()
 	if len(ui) < 2 {
 		return
@@ -211,42 +250,44 @@ func (message *Message) Svc_updateuserinfo(mvd *Mvd) {
 		v := splits[i+1]
 		switch splits[i] {
 		case "name":
-			player.Name = v
+			p.Name = v
 		case "team":
-			player.Team = v
+			p.Team = v
 		case "*spectator":
 			if v == "1" {
-				player.Spectator = true
+				p.Spectator = true
 			}
 		}
 	}
+	mvd.EmitEventPlayer(p, pnum, PE_USERINFO)
 }
 
 func (message *Message) Svc_sound(mvd *Mvd) {
+	var s Sound
 	channel := SND_TYPE(message.ReadShort()) // channel
-	mvdPrint(channel)
+	s.Channel = channel
 	if channel&SND_VOLUME == SND_VOLUME {
 		mvdPrint("has volume")
-		message.ReadByte()
+		s.Volume = message.ReadByte()
 	}
 
 	if channel&SND_ATTENUATION == SND_ATTENUATION {
 		mvdPrint("has attenuation")
-		message.ReadByte()
+		s.Attenuation = message.ReadByte()
 	}
-	mvdPrint("sound: ", message.ReadByte())
-	message.ReadCoord()
-	message.ReadCoord()
-	message.ReadCoord()
+	s.Index = message.ReadByte()
+	s.Origin.Set(message.ReadCoord(), message.ReadCoord(), message.ReadCoord())
+	mvd.state.SoundsActive = append(mvd.state.SoundsActive, s)
+	mvd.EmitEventSound(&s)
 }
 
 func (message *Message) Svc_spawnstaticsound(mvd *Mvd) {
-	message.ReadCoord() // x
-	message.ReadCoord()
-	message.ReadCoord()
-	message.ReadByte() // sound_num
-	message.ReadByte() // sound volume
-	message.ReadByte() // sound attenuation
+	var s Sound
+	s.Origin.Set(message.ReadCoord(), message.ReadCoord(), message.ReadCoord())
+	s.Index = message.ReadByte()       // sound_num
+	s.Volume = message.ReadByte()      // sound volume
+	s.Attenuation = message.ReadByte() // sound attenuation
+	mvd.state.SoundsStatic = append(mvd.state.SoundsStatic, s)
 }
 
 func (message *Message) Svc_setangle(mvd *Mvd) {
@@ -266,22 +307,42 @@ func (message *Message) Svc_updatestatlong(mvd *Mvd) {
 	stat := STAT_TYPE(message.ReadByte())
 	value := message.ReadLong()
 	p := &mvd.state.Players[mvd.demo.last_to]
-	if stat == STAT_HEALTH {
-		if value <= 0 {
-			p.Deaths += 1
+	s := fmt.Sprintf("%s", STAT_TYPE(stat))
+	s = strings.TrimPrefix(s, "STAT_")
+	s = strings.ToLower(s)
+	s = strings.Title(s)
+	ps := reflect.ValueOf(p)
+	st := ps.Elem()
+	f := st.FieldByName(s)
+	if f.IsValid() {
+		if f.CanSet() {
+			if f.Kind() == reflect.Int {
+				f.SetInt(int64(value))
+			}
 		}
 	}
+	mvd.EmitEventPlayer(p, byte(mvd.demo.last_to), PE_STATS)
 }
 
 func (message *Message) Svc_updatestat(mvd *Mvd) {
 	stat := STAT_TYPE(message.ReadByte())
 	value := message.ReadByte()
 	p := &mvd.state.Players[mvd.demo.last_to]
-	if stat == STAT_HEALTH {
-		if value <= 0 {
-			p.Deaths += 1
+	s := fmt.Sprintf("%s", STAT_TYPE(stat))
+	s = strings.TrimPrefix(s, "STAT_")
+	s = strings.ToLower(s)
+	s = strings.Title(s)
+	ps := reflect.ValueOf(p)
+	st := ps.Elem()
+	f := st.FieldByName(s)
+	if f.IsValid() {
+		if f.CanSet() {
+			if f.Kind() == reflect.Int {
+				f.SetInt(int64(value))
+			}
 		}
 	}
+	mvd.EmitEventPlayer(p, byte(mvd.demo.last_to), PE_STATS)
 }
 
 func (message *Message) Svc_deltapacketentities(mvd *Mvd) {

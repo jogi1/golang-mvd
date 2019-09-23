@@ -3,9 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	//"strconv"
-	"fmt"
-	"strings"
 )
 
 func (mvd *Mvd) Parse(output_type string) {
@@ -25,11 +22,13 @@ func (mvd *Mvd) Parse(output_type string) {
 
 func (mvd *Mvd) Frame() {
 	//mvd.Debug.Printf("Frame (%v)", mvd.frame)
+	mvd.state_last_frame = mvd_state(mvd.state)
 
 	if mvd.ReadFrame() == false {
 		mvd.Debug.Panic("somethings wrong")
 		return
 	}
+	mvd.HandlePlayerEvents()
 	mvd.frame++
 }
 
@@ -165,39 +164,4 @@ func (mvd *Mvd) ReadUint() uint32 {
 }
 
 func mvdPrint(a ...interface{}) {
-}
-
-func sanatize_name(name string) string {
-	r := []byte(name)
-	var b strings.Builder
-	for _, ri := range r {
-		fmt.Fprintf(&b, "%c", qw_ascii_table[uint(ri)])
-	}
-	return b.String()
-}
-
-func int_name(name string) string {
-	var b strings.Builder
-	r := []byte(name)
-	for i, ri := range r {
-		if i > 0 {
-			fmt.Fprintf(&b, " %d", ri)
-		} else {
-			fmt.Fprintf(&b, "%d", ri)
-		}
-	}
-	return b.String()
-}
-
-func sanatize_map_name(name string) string {
-	var b strings.Builder
-	r := []byte(name)
-	for _, ri := range r {
-		if ri == '\n' {
-			fmt.Fprintf(&b, "\\n")
-		} else {
-			fmt.Fprintf(&b, "%s", string(ri))
-		}
-	}
-	return b.String()
 }
