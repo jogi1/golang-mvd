@@ -169,12 +169,11 @@ func mvdPrint(a ...interface{}) {
 
 func sanatize_name(name string) string {
 	r := []byte(name)
-	for i, ri := range r {
-		if ri > 128 {
-			r[i] = ri - 128
-		}
+	var b strings.Builder
+	for _, ri := range r {
+		fmt.Fprintf(&b, "%c", qw_ascii_table[uint(ri)])
 	}
-	return string(r)
+	return b.String()
 }
 
 func int_name(name string) string {

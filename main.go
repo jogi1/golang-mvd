@@ -111,11 +111,13 @@ func main() {
 		mvd.InitVM(script, "runme.js")
 	}
 
+	mvd.Ascii_Init()
+
 	mvd.Parse("")
 	mvd.state.Mapfile = mvd.demo.modellist[0]
 
 	mvd.VmDemoFinished()
-	os.Exit(1)
+	os.Exit(0)
 }
 
 func (mvd *Mvd) GetInfo(length uint) string {
