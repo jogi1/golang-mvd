@@ -55,7 +55,7 @@ type Item_Stat struct {
 type Itemstats struct {
 	Axe, Shotgun, SuperShotgun, NailGun, SuperNailGun, GrenadeLauncher, RocketLauncher, LightningGun Weapon_Stat
 	GreenArmor, YellowArmor, RedArmor                                                                Armor_Stat
-	MegaHealth, Quad, Pentagram                                                                      Item_Stat
+	MegaHealth, Quad, Pentagram, Ring                                                                Item_Stat
 }
 
 type Player struct {
@@ -65,6 +65,7 @@ type Player struct {
 	Userid      int
 	Spectator   bool
 	Deaths      int
+	Suicides    int
 	Origin      Vector
 	Angle       Vector
 	ModelIndex  byte

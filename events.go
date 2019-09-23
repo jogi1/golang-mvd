@@ -46,6 +46,10 @@ func (mvd *Mvd) HandlePlayerEvents() {
 				player.Deaths += 1
 			}
 
+			if player.Frags < p.Frags {
+				player.Suicides += 1
+			}
+
 			if player.Items != p.Items {
 				player.Itemstats.SuperShotgun.CheckItem(IT_SUPER_SHOTGUN, player, p)
 				player.Itemstats.NailGun.CheckItem(IT_NAILGUN, player, p)
@@ -59,6 +63,9 @@ func (mvd *Mvd) HandlePlayerEvents() {
 				player.Itemstats.RedArmor.CheckItem(IT_ARMOR3, player, p)
 
 				player.Itemstats.MegaHealth.CheckItem(IT_SUPERHEALTH, player, p)
+				player.Itemstats.Quad.CheckItem(IT_QUAD, player, p)
+				player.Itemstats.Pentagram.CheckItem(IT_INVULNERABILITY, player, p)
+				player.Itemstats.Ring.CheckItem(IT_INVISIBILITY, player, p)
 			}
 		}
 		player.event_info.events = 0
@@ -84,11 +91,22 @@ func (s *Armor_Stat) CheckItem(iitem IT_TYPE, cf, lf *Player) {
 	if cf.Items&item == item && lf.Items&item == 0 {
 		s.Pickup += 1
 	}
+	if cf.Items&item == item && lf.Items&item == item {
+		if cf.Armor > lf.Armor {
+			s.Pickup += 1
+		}
+	}
 }
 
 func (s *Item_Stat) CheckItem(iitem IT_TYPE, cf, lf *Player) {
 	item := int(iitem)
 	if cf.Items&item == item && lf.Items&item == 0 {
 		s.Pickup += 1
+	}
+
+	if iitem == IT_SUPERHEALTH {
+		if cf.Items&item == item && lf.Health > 100 && cf.Health > lf.Health {
+			s.Pickup += 1
+		}
 	}
 }

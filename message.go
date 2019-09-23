@@ -138,6 +138,7 @@ func (message *Message) Svc_updatefrags(mvd *Mvd) {
 	player := message.ReadByte()
 	frags := message.ReadShort()
 	mvd.state.Players[int(player)].Frags = int(frags)
+	mvd.EmitEventPlayer(&mvd.state.Players[int(player)], player, PE_STATS)
 }
 
 func (message *Message) Svc_playerinfo(mvd *Mvd) {
