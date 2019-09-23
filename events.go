@@ -73,9 +73,6 @@ func (mvd *Mvd) HandlePlayerEvents() {
 	}
 }
 
-func (mvd *Mvd) EmitEventSound(sound *Sound) {
-}
-
 func (s *Weapon_Stat) CheckItem(iitem IT_TYPE, cf, lf *Player) {
 	item := int(iitem)
 	if cf.Items&item == item && lf.Items&item == 0 {
@@ -95,6 +92,9 @@ func (s *Armor_Stat) CheckItem(iitem IT_TYPE, cf, lf *Player) {
 		if cf.Armor > lf.Armor {
 			s.Pickup += 1
 		}
+		if cf.Armor < lf.Armor {
+			s.Damage_Absorbed += lf.Armor - cf.Armor
+		}
 	}
 }
 
@@ -109,4 +109,9 @@ func (s *Item_Stat) CheckItem(iitem IT_TYPE, cf, lf *Player) {
 			s.Pickup += 1
 		}
 	}
+}
+
+func (mvd *Mvd) EmitEventSound(sound *Sound) {
+	sound.Frame = mvd.frame
+	mvd.state.SoundsActive = append(mvd.state.SoundsActive, *sound)
 }

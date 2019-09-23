@@ -100,6 +100,7 @@ type Player struct {
 }
 
 type Sound struct {
+	Frame       uint
 	Index       byte
 	Channel     SND_TYPE
 	Volume      byte
@@ -111,9 +112,10 @@ type mvd_state struct {
 	Players      [32]Player
 	SoundsActive []Sound
 	SoundsStatic []Sound
-	Mapname      string
-	Mapfile      string
-	Hostname     string
+
+	Mapname  string
+	Mapfile  string
+	Hostname string
 }
 
 type Mvd struct {
