@@ -78,11 +78,7 @@ var (
 
 func (i SVC_TYPE) String() string {
 	switch {
-<<<<<<< HEAD
 	case 0 <= i && i <= 54:
-=======
-	case i <= 54:
->>>>>>> 697644347f1bc141d5e81116dc565e059c5c8a3e
 		return _SVC_TYPE_name_0[_SVC_TYPE_index_0[i]:_SVC_TYPE_index_0[i+1]]
 	case i == 83:
 		return _SVC_TYPE_name_1
