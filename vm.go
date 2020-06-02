@@ -38,39 +38,51 @@ func (mvd *Mvd) InitVM(script []byte, name string) error {
 		return otto.Value{}
 	})
 
-	s := "stats = { "
+	name_num := "stats = { "
+	num_name := "stats_name = { "
 	for i := STAT_HEALTH; i < STAT_ACTIVEWEAPON; i++ {
 		name := strings.TrimPrefix(strings.ToLower((STAT_TYPE(i)).String()), "stat_")
 		num := strconv.Itoa(int(i))
-		s = s + name + ": " + num + ","
+		name_num = name_num + name + ": " + num + ","
+		num_name = num_name + num + ": \"" + name + "\","
 	}
-	s = s + "}"
+	name_num = name_num + "};"
+	num_name = num_name + "}"
+	s := name_num + num_name
 	_, err := vm.Run(s)
 	if err != nil {
 		mvd.Error.Fatal("setting stats failed with: ", err)
 		return err
 	}
 
-	s = "items = { "
+	name_num = "items = { "
+	num_name = "items_name = { "
 	for i := IT_SHOTGUN; i <= IT_SIGIL4; i = i << 1 {
 		name := strings.TrimPrefix(strings.ToLower((IT_TYPE(i)).String()), "it_")
 		num := strconv.Itoa(int(i))
-		s = s + name + ": " + num + ","
+		name_num = name_num + name + ": " + num + ","
+		num_name = num_name + num + ": \"" + name + "\","
 	}
-	s = s + "}"
+	name_num = name_num + "};"
+	num_name = num_name + "}"
+	s = name_num + num_name
 	_, err = vm.Run(s)
 	if err != nil {
 		mvd.Error.Fatal("setting items failed with: ", err)
 		return err
 	}
 
-	s = "event_types = { "
+	name_num = "event_types = { "
+	num_name = "event_types_name = { "
 	for i := EPT_Spawn; i <= EPT_Drop; i++ {
 		name := strings.ToLower((Event_Type(i)).String())[4:]
 		num := strconv.Itoa(int(i))
-		s = s + name + ": " + num + ","
+		name_num = name_num + name + ": " + num + ","
+		num_name = num_name + num + ": \"" + name + "\","
 	}
-	s = s + "}"
+	name_num = name_num + "};"
+	num_name = num_name + "}"
+	s = name_num + num_name
 	_, err = vm.Run(s)
 	if err != nil {
 		mvd.Error.Fatal("setting items failed with: ", err)

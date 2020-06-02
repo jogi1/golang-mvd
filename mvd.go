@@ -46,6 +46,7 @@ func (mvd *Mvd) Frame() {
 func (mvd *Mvd) ReadFrame() bool {
 	for {
 		mvd.demotime()
+		mvd.state.Time = mvd.demo.time
 		cmd := mvd.ReadByte()
 		msg_type := DEM_TYPE(cmd & 7)
 		if msg_type == dem_cmd {

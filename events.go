@@ -43,6 +43,10 @@ func (mvd *Mvd) HandlePlayerEvents() {
 			return
 		}
 		if player.event_info.events&PE_STATS == PE_STATS {
+			if player.Health > 0 && p.Health <= 0 {
+				e := Event_Player{EPT_Spawn, player_num}
+				mvd.state.Events = append(mvd.state.Events, e)
+			}
 			if player.Health <= 0 && p.Health > 0 {
 				player.Deaths += 1
 				e := Event_Player{EPT_Death, player_num}
