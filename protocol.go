@@ -203,8 +203,7 @@ const (
 	STAT_WTF           STAT_TYPE = 18 // Z_EXT_TIME extension
 )
 
-//go:generate
-//stringer -type=IT_TYPE
+//go:generate stringer -type=IT_TYPE
 type IT_TYPE int
 
 const (
@@ -231,6 +230,11 @@ const (
 	IT_INVULNERABILITY  IT_TYPE = 1048576
 	IT_SUIT             IT_TYPE = 2097152
 	IT_QUAD             IT_TYPE = 4194304
+	IT_UNKNOWN1         IT_TYPE = (1 << 23)
+	IT_UNKNOWN2         IT_TYPE = (1 << 24)
+	IT_UNKNOWN3         IT_TYPE = (1 << 25)
+	IT_UNKNOWN4         IT_TYPE = (1 << 26)
+	IT_UNKNOWN5         IT_TYPE = (1 << 27)
 	IT_SIGIL1           IT_TYPE = (1 << 28)
 	IT_SIGIL2           IT_TYPE = (1 << 29)
 	IT_SIGIL3           IT_TYPE = (1 << 30)

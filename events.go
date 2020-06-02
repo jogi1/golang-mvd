@@ -31,8 +31,9 @@ func (mvd *Mvd) EmitEventPlayer(player *Player, pnum byte, pe_type PE_TYPE) {
 }
 
 func (mvd *Mvd) HandlePlayerEvents() {
-	for i, _ := range mvd.state.Players {
-		player := &mvd.state.Players[i]
+	for _, __player := range mvd.state.Players {
+		player := &__player
+		player_num := int(player.event_info.pnum)
 		if player.event_info.events == 0 {
 			continue
 		}
@@ -44,28 +45,38 @@ func (mvd *Mvd) HandlePlayerEvents() {
 		if player.event_info.events&PE_STATS == PE_STATS {
 			if player.Health <= 0 && p.Health > 0 {
 				player.Deaths += 1
+				e := Event_Player{EPT_Death, player_num}
+				mvd.state.Events = append(mvd.state.Events, e)
 			}
 
 			if player.Frags < p.Frags {
-				player.Suicides += 1
+				if player.Health <= 0 {
+					player.Suicides += 1
+					e := Event_Player{EPT_Suicide, player_num}
+					mvd.state.Events = append(mvd.state.Events, e)
+				} else {
+					player.Teamkills += 1
+					e := Event_Player{EPT_Teamkill, player_num}
+					mvd.state.Events = append(mvd.state.Events, e)
+				}
 			}
 
 			if player.Items != p.Items {
-				player.Itemstats.SuperShotgun.CheckItem(IT_SUPER_SHOTGUN, player, p)
-				player.Itemstats.NailGun.CheckItem(IT_NAILGUN, player, p)
-				player.Itemstats.SuperNailGun.CheckItem(IT_SUPER_NAILGUN, player, p)
-				player.Itemstats.GrenadeLauncher.CheckItem(IT_GRENADE_LAUNCHER, player, p)
-				player.Itemstats.RocketLauncher.CheckItem(IT_ROCKET_LAUNCHER, player, p)
-				player.Itemstats.LightningGun.CheckItem(IT_LIGHTNING, player, p)
+				player.Itemstats.SuperShotgun.CheckItem(mvd, IT_SUPER_SHOTGUN, player, p)
+				player.Itemstats.NailGun.CheckItem(mvd, IT_NAILGUN, player, p)
+				player.Itemstats.SuperNailGun.CheckItem(mvd, IT_SUPER_NAILGUN, player, p)
+				player.Itemstats.GrenadeLauncher.CheckItem(mvd, IT_GRENADE_LAUNCHER, player, p)
+				player.Itemstats.RocketLauncher.CheckItem(mvd, IT_ROCKET_LAUNCHER, player, p)
+				player.Itemstats.LightningGun.CheckItem(mvd, IT_LIGHTNING, player, p)
 
-				player.Itemstats.GreenArmor.CheckItem(IT_ARMOR1, player, p)
-				player.Itemstats.YellowArmor.CheckItem(IT_ARMOR2, player, p)
-				player.Itemstats.RedArmor.CheckItem(IT_ARMOR3, player, p)
+				player.Itemstats.GreenArmor.CheckItem(mvd, IT_ARMOR1, player, p)
+				player.Itemstats.YellowArmor.CheckItem(mvd, IT_ARMOR2, player, p)
+				player.Itemstats.RedArmor.CheckItem(mvd, IT_ARMOR3, player, p)
 
-				player.Itemstats.MegaHealth.CheckItem(IT_SUPERHEALTH, player, p)
-				player.Itemstats.Quad.CheckItem(IT_QUAD, player, p)
-				player.Itemstats.Pentagram.CheckItem(IT_INVULNERABILITY, player, p)
-				player.Itemstats.Ring.CheckItem(IT_INVISIBILITY, player, p)
+				player.Itemstats.MegaHealth.CheckItem(mvd, IT_SUPERHEALTH, player, p)
+				player.Itemstats.Quad.CheckItem(mvd, IT_QUAD, player, p)
+				player.Itemstats.Pentagram.CheckItem(mvd, IT_INVULNERABILITY, player, p)
+				player.Itemstats.Ring.CheckItem(mvd, IT_INVISIBILITY, player, p)
 			}
 		}
 		player.event_info.events = 0
@@ -73,24 +84,35 @@ func (mvd *Mvd) HandlePlayerEvents() {
 	}
 }
 
-func (s *Weapon_Stat) CheckItem(iitem IT_TYPE, cf, lf *Player) {
+func (s *Weapon_Stat) CheckItem(mvd *Mvd, iitem IT_TYPE, cf, lf *Player) int {
 	item := int(iitem)
 	if cf.Items&item == item && lf.Items&item == 0 {
 		s.Pickup += 1
+		e := Event_Player_Item{EPT_Pickup, int(cf.event_info.pnum), iitem}
+		mvd.state.Events = append(mvd.state.Events, e)
+		return 1
 	}
 	if cf.Items&item == 0 && lf.Items&item == item {
 		s.Drop += 1
+		e := Event_Player_Item{EPT_Drop, int(cf.event_info.pnum), iitem}
+		mvd.state.Events = append(mvd.state.Events, e)
+		return -1
 	}
+	return 0
 }
 
-func (s *Armor_Stat) CheckItem(iitem IT_TYPE, cf, lf *Player) {
+func (s *Armor_Stat) CheckItem(mvd *Mvd, iitem IT_TYPE, cf, lf *Player) {
 	item := int(iitem)
 	if cf.Items&item == item && lf.Items&item == 0 {
 		s.Pickup += 1
+		e := Event_Player_Item{EPT_Drop, int(cf.event_info.pnum), iitem}
+		mvd.state.Events = append(mvd.state.Events, e)
 	}
 	if cf.Items&item == item && lf.Items&item == item {
 		if cf.Armor > lf.Armor {
 			s.Pickup += 1
+			e := Event_Player_Item{EPT_Drop, int(cf.event_info.pnum), iitem}
+			mvd.state.Events = append(mvd.state.Events, e)
 		}
 		if cf.Armor < lf.Armor {
 			s.Damage_Absorbed += lf.Armor - cf.Armor
@@ -98,7 +120,7 @@ func (s *Armor_Stat) CheckItem(iitem IT_TYPE, cf, lf *Player) {
 	}
 }
 
-func (s *Item_Stat) CheckItem(iitem IT_TYPE, cf, lf *Player) {
+func (s *Item_Stat) CheckItem(mvd *Mvd, iitem IT_TYPE, cf, lf *Player) {
 	item := int(iitem)
 	if cf.Items&item == item && lf.Items&item == 0 {
 		s.Pickup += 1

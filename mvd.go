@@ -3,29 +3,40 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"strconv"
 )
 
 func (mvd *Mvd) Parse(output_type string) {
-	//mvd.Debug.Println("parsing ", mvd.filename)
-
+	if mvd.debug {
+		mvd.Debug.Println("parsing ", mvd.filename)
+	}
 	for {
 		if mvd.done == true {
 			return
 		}
 		mvd.Frame()
 		if int(mvd.file_offset) > len(mvd.file) {
-			//mvd.Debug.Println("parsing finished?")
+			if mvd.debug {
+				mvd.Debug.Println("parsing finished?")
+			}
 			break
 		}
+		mvd.VmDemoFrame()
 	}
 }
 
 func (mvd *Mvd) Frame() {
-	//mvd.Debug.Printf("Frame (%v)", mvd.frame)
+	if mvd.debug {
+		mvd.Debug.Printf("Frame (%v)", mvd.frame)
+	}
 	mvd.state_last_frame = mvd_state(mvd.state)
+	mvd.state_last_frame.Events = mvd.state.Events
+	mvd.state.Events = make([]interface{}, 0)
 
 	if mvd.ReadFrame() == false {
-		mvd.Debug.Panic("somethings wrong")
+		if mvd.debug {
+			mvd.Debug.Panic("somethings wrong")
+		}
 		return
 	}
 	mvd.HandlePlayerEvents()
@@ -41,7 +52,9 @@ func (mvd *Mvd) ReadFrame() bool {
 			mvd.Error.Panic("this is an mvd parser")
 		}
 
-		//mvd.Debug.Println("handling cmd", DEM_TYPE(cmd))
+		if mvd.debug {
+			mvd.Debug.Println("handling cmd", DEM_TYPE(cmd))
+		}
 		if msg_type >= dem_multiple && msg_type <= dem_all {
 			switch msg_type {
 			case dem_multiple:
@@ -49,7 +62,9 @@ func (mvd *Mvd) ReadFrame() bool {
 					i := mvd.ReadInt()
 					//mvd.demo.last_to = uint(mvd.ReadUint())
 					mvd.demo.last_to = uint(i)
-					//mvd.Debug.Println("affected players: ", strconv.FormatInt(int64(mvd.demo.last_to), 2), mvd.demo.last_to)
+					if mvd.debug {
+						mvd.Debug.Println("affected players: ", strconv.FormatInt(int64(mvd.demo.last_to), 2), mvd.demo.last_to)
+					}
 					mvd.demo.last_type = dem_multiple
 					break
 				}
@@ -61,7 +76,9 @@ func (mvd *Mvd) ReadFrame() bool {
 				}
 			case dem_all:
 				{
-					//mvd.Debug.Println("dem_all", mvd.file_offset)
+					if mvd.debug {
+						mvd.Debug.Println("dem_all", mvd.file_offset)
+					}
 					mvd.demo.last_to = 0
 					mvd.demo.last_type = dem_all
 					break
@@ -69,7 +86,9 @@ func (mvd *Mvd) ReadFrame() bool {
 
 			case dem_stats:
 				{
-					//mvd.Debug.Println("dem_stats", cmd, cmd&7, dem_stats, mvd.file_offset, "byte: ", mvd.file[mvd.file_offset])
+					if mvd.debug {
+						mvd.Debug.Println("dem_stats", cmd, cmd&7, dem_stats, mvd.file_offset, "byte: ", mvd.file[mvd.file_offset])
+					}
 					mvd.demo.last_to = uint(cmd >> 3)
 					mvd.demo.last_type = dem_stats
 					break
@@ -78,21 +97,29 @@ func (mvd *Mvd) ReadFrame() bool {
 			msg_type = dem_read
 		}
 		if msg_type == dem_set {
-			//mvd.Debug.Println("dem_set", mvd.file_offset)
+			if mvd.debug {
+				mvd.Debug.Println("dem_set", mvd.file_offset)
+			}
 			mvd.demo.outgoing_sequence = mvd.ReadUint()
 			mvd.demo.incoming_sequence = mvd.ReadUint()
-			//mvd.Debug.Printf("Squence in(%v) out(%v)", mvd.demo.incoming_sequence, mvd.demo.outgoing_sequence)
+			if mvd.debug {
+				mvd.Debug.Printf("Squence in(%v) out(%v)", mvd.demo.incoming_sequence, mvd.demo.outgoing_sequence)
+			}
 			continue
 		}
 		if msg_type == dem_read {
 			b := mvd.ReadIt(msg_type)
 			for b == true {
-				//mvd.Debug.Println("did we loop?")
+				if mvd.debug {
+					mvd.Debug.Println("did we loop?")
+				}
 				b = mvd.ReadIt(msg_type)
 			}
 			return true
 		}
-		//mvd.Debug.Println(cmd)
+		if mvd.debug {
+			mvd.Debug.Println(cmd)
+		}
 		return false
 	}
 
@@ -106,18 +133,26 @@ func (mvd *Mvd) ReadNext() bool {
 func (mvd *Mvd) ReadIt(cmd DEM_TYPE) bool {
 	current_size := int(mvd.ReadUint())
 	if current_size == 0 {
-		//mvd.Debug.Println("ReadIt: current size 0 go to next Frame! <----------")
+		if mvd.debug {
+			mvd.Debug.Println("ReadIt: current size 0 go to next Frame! <----------")
+		}
 		return false
 	}
 	old_offset := mvd.file_offset
 	mvd.file_offset += uint(current_size)
-	//mvd.Debug.Printf("------------- moving ahead %v from (%v) to (%v) filesize: %v", current_size, old_offset, mvd.file_offset, len(mvd.file))
+	if mvd.debug {
+		mvd.Debug.Printf("------------- moving ahead %v from (%v) to (%v) filesize: %v", current_size, old_offset, mvd.file_offset, len(mvd.file))
+	}
 	mvd.MessageParse(Message{size: uint(current_size), data: mvd.file[old_offset:mvd.file_offset]})
 	if mvd.demo.last_type == dem_multiple {
-		//mvd.Debug.Println("looping")
+		if mvd.debug {
+			mvd.Debug.Println("looping")
+		}
 		return true
 	}
-	//mvd.Debug.Println("ReadIt: go to next Frame! <----------")
+	if mvd.debug {
+		mvd.Debug.Println("ReadIt: go to next Frame! <----------")
+	}
 	return false
 }
 
@@ -128,18 +163,24 @@ func (mvd *Mvd) usercmd() {
 func (mvd *Mvd) demotime() {
 	b := mvd.ReadByte()
 	mvd.demo.time += float64(b) * 0.0001
-	//mvd.Debug.Printf("time (%v)", mvd.demo.time)
+	if mvd.debug {
+		mvd.Debug.Printf("time (%v)", mvd.demo.time)
+	}
 }
 
 func (mvd *Mvd) ReadBytes(count uint) *bytes.Buffer {
-	//mvd.Debug.Println("------------- READBYTES: ", mvd.GetInfo(count), count)
+	if mvd.debug {
+		mvd.Debug.Println("------------- READBYTES: ", mvd.GetInfo(count), count)
+	}
 	b := bytes.NewBuffer(mvd.file[mvd.file_offset : mvd.file_offset+count])
 	mvd.file_offset += count
 	return b
 }
 
 func (mvd *Mvd) ReadByte() byte {
-	//mvd.Debug.Println("------------- READBYTE: ", mvd.GetInfo(1))
+	if mvd.debug {
+		mvd.Debug.Println("------------- READBYTE: ", mvd.GetInfo(1))
+	}
 	b := mvd.file[mvd.file_offset]
 	mvd.file_offset += 1
 	return b

@@ -58,6 +58,44 @@ type Itemstats struct {
 	MegaHealth, Quad, Pentagram, Ring                                                                Item_Stat
 }
 
+//go:generate stringer -type=Event_Type
+type Event_Type uint
+
+const (
+	EPT_Spawn Event_Type = iota
+	EPT_Death
+	EPT_Suicide
+	EPT_Kill
+	EPT_Teamkill
+	EPT_Pickup
+	EPT_Drop
+)
+
+// EPT_Spawn, EPT_Death, EPT_Suicide
+type Event_Player struct {
+	Type          Event_Type
+	Player_Number int
+}
+
+// EPT_Kill, EPT_Teamkill
+type Event_Player_Kill struct {
+	Type          Event_Type
+	Player_Number int
+}
+
+type Event_Player_Item struct {
+	Type          Event_Type
+	Player_Number int
+	Item_Type     IT_TYPE
+}
+
+type Event_Player_Stat struct {
+	Type          Event_Type
+	Player_Number int
+	Stat          STAT_TYPE
+	Amount        int
+}
+
 type Player struct {
 	event_info  PE_Info
 	Name        string
@@ -66,6 +104,7 @@ type Player struct {
 	Spectator   bool
 	Deaths      int
 	Suicides    int
+	Teamkills   int
 	Origin      Vector
 	Angle       Vector
 	ModelIndex  byte
@@ -109,6 +148,7 @@ type Sound struct {
 }
 
 type mvd_state struct {
+	Time         float64
 	Players      [32]Player
 	SoundsActive []Sound
 	SoundsStatic []Sound
@@ -116,6 +156,8 @@ type mvd_state struct {
 	Mapname  string
 	Mapfile  string
 	Hostname string
+
+	Events []interface{}
 }
 
 type Mvd struct {
@@ -123,14 +165,17 @@ type Mvd struct {
 	Error *log.Logger
 	Debug *log.Logger
 
-	file           []byte
-	file_offset    uint
-	filename       string
-	frame          uint
-	done           bool
-	demo           demo
-	vm             *otto.Otto
-	vm_initialized bool
+	file               []byte
+	file_offset        uint
+	filename           string
+	frame              uint
+	done               bool
+	demo               demo
+	vm                 *otto.Otto
+	vm_frame_function  *otto.Value
+	vm_finish_function *otto.Value
+	vm_initialized     bool
+	debug              bool
 
 	state            mvd_state
 	state_last_frame mvd_state
@@ -184,8 +229,10 @@ func main() {
 		if err != nil {
 			mvd.Error.Fatal(err)
 		}
+		fmt.Println("running defualt.js")
 		mvd.InitVM(s, "default.js")
 	} else {
+		fmt.Println("running runme.js")
 		mvd.InitVM(script, "runme.js")
 	}
 
