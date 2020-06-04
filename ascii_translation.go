@@ -9,9 +9,7 @@ import (
 var qw_ascii_table []rune
 
 func (parser *Parser) Ascii_Init(ascii_table_file string) error {
-	ascii_table, err := ioutil.ReadFile(ascii_table_file)
-	if err != nil {
-		err = nil
+	if ascii_table_file == "data/ascii.table" {
 		s, err := Asset("data/ascii.table")
 		if err != nil {
 			return err
@@ -19,10 +17,13 @@ func (parser *Parser) Ascii_Init(ascii_table_file string) error {
 		parser.ascii_table = []rune(string(s))
 		return nil
 	}
+	ascii_table, err := ioutil.ReadFile(ascii_table_file)
+	if err != nil {
+		return err
+	}
 	s := string(ascii_table)
 	s = strings.TrimRight(s, "\r\n")
-	qw_ascii_table = []rune(string(ascii_table))
-	parser.ascii_table = qw_ascii_table
+	parser.ascii_table = []rune(string(ascii_table))
 	return nil
 }
 

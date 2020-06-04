@@ -35,7 +35,12 @@ func (parser *Parser) InitVM(script []byte, name string) error {
 		for _, v := range call.ArgumentList {
 			m = fmt.Sprintf("%s%s", m, v.String())
 		}
-		fmt.Printf("%s", m)
+		if parser.output_file == nil {
+			fmt.Printf("%s", m)
+		} else {
+			b := []byte(m)
+			parser.output_file.Write(b)
+		}
 		return otto.Value{}
 	})
 

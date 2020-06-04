@@ -3,11 +3,14 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/jogi1/mvdreader"
 	"github.com/robertkrimen/otto"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 )
 
@@ -78,97 +81,169 @@ type Parser struct {
 	ascii_table        []rune
 	stats              [32]Stats
 	filename           string
+	output_file        *os.File
+}
+
+type JsonDump struct {
+	Mvd      *mvdreader.Mvd
+	Stats    [32]Stats
+	Filename string
 }
 
 func main() {
-	var err error
 	var parser Parser
+	var logger *log.Logger
 
-	/*
-		mvd.Debug = log.New(os.Stdout,
-			"DEBUG: ",
-			log.Ldate|log.Ltime|log.Lshortfile)
-	*/
+	debug_file := flag.String("debug_file", "stdout", "debug output target")
+	debug := flag.Bool("debug", false, "debug output enabled")
+	output_script := flag.String("output_script", "data/default.js", "script to run")
+	ascii_table_file := flag.String("ascii_table", "data/ascii.table", "ascii translation table file")
+	json_dump := flag.Bool("json_dump", false, "do not run a script, just dump all info as json")
+	output_file := flag.String("output_file", "stdout", "output target")
 
-	if len(os.Args) < 2 {
-		fmt.Println("no demo supplied")
+	flag.Parse()
+
+	if *output_file != "stdout" {
+		f, err := os.OpenFile(*output_file,
+			os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		parser.output_file = f
+		defer f.Close()
+	}
+
+	if *debug {
+		if *debug_file != "stdout" {
+			f, err := os.OpenFile(*debug_file,
+				os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			defer f.Close()
+
+			logger = log.New(f, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
+		} else {
+			logger = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
+		}
+	}
+
+	if len(flag.Args()) < 1 {
+		fmt.Println("no demos supplied")
 		os.Exit(1)
 	}
-	filename := os.Args[1]
-	parser.filename = filename
 
-	r, err := zip.OpenReader(filename)
-	defer r.Close()
-	if err == nil {
-		f := r.File[0]
-		rc, err := f.Open()
-		if err != nil {
-			panic(err)
-		}
-		buf := bytes.NewBuffer(nil)
-		io.Copy(buf, rc)
+	for _, filename := range flag.Args() {
+		parser.filename = filename
 
-		err, parser.mvd = mvdreader.Load(buf.Bytes())
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		read_file, err := ioutil.ReadFile(os.Args[1])
-		if err != nil {
-			panic(err)
-		}
-		err, parser.mvd = mvdreader.Load(read_file)
-		if err != nil {
-			panic(err)
+		r, err := zip.OpenReader(filename)
+		defer r.Close()
+		if err == nil {
+			f := r.File[0]
+			rc, err := f.Open()
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			buf := bytes.NewBuffer(nil)
+			io.Copy(buf, rc)
+
+			err, parser.mvd = mvdreader.Load(buf.Bytes())
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		} else {
+			read_file, err := ioutil.ReadFile(filename)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			err, parser.mvd = mvdreader.Load(read_file)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+
 		}
 
-	}
-
-	script, err := ioutil.ReadFile("runme.js")
-	if err != nil {
-		s, err := Asset("data/default.js")
-		if err != nil {
-			panic(err)
+		if logger != nil {
+			parser.mvd.Debug = logger
 		}
-		err = parser.InitVM(s, "data/default.js")
+
+		if *json_dump == false {
+			if *output_script == "data/default.js" {
+				s, err := Asset("data/default.js")
+				err = parser.InitVM(s, "data/default.js")
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			} else {
+				script, err := ioutil.ReadFile(*output_script)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+				err = parser.InitVM(script, *output_script)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			}
+		}
+
+		err = parser.Ascii_Init(*ascii_table_file)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-	} else {
-		err = parser.InitVM(script, "runme.js")
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+
+		for {
+			err, done := parser.mvd.ParseFrame()
+			parser.handlePlayerEvents()
+
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			if *json_dump == false {
+				err = parser.VmDemoFrame()
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			}
+			if done {
+				break
+			}
+			parser.clearPlayerEvents()
 		}
-	}
 
-	parser.Ascii_Init("data/ascii.table")
-
-	for {
-		err, done := parser.mvd.ParseFrame()
-
-		parser.handlePlayerEvents()
-
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+		if *json_dump == false {
+			err = parser.VmDemoFinished()
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		} else {
+			var jsonS JsonDump
+			jsonS.Filename = parser.filename
+			jsonS.Mvd = &parser.mvd
+			jsonS.Stats = parser.stats
+			js, err := json.MarshalIndent(jsonS, "", "")
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			if parser.output_file != nil {
+				parser.output_file.Write(js)
+			} else {
+				fmt.Println(string(js))
+			}
 		}
-		err = parser.VmDemoFrame()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		if done {
-			break
-		}
-		parser.clearPlayerEvents()
-	}
-
-	err = parser.VmDemoFinished()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
 	}
 	os.Exit(0)
 }
