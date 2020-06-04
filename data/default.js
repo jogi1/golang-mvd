@@ -6,11 +6,11 @@ function _p (indent_level, key, value) {
   return m + "\"" + key + "\": \"" + value + "\""
 }
 
-function on_finish (state, stats, demo, server) {
+function on_finish (state, stats, server) {
   print("{\n")
   print(_p(1, "hostname", sanatize(server.Hostname)), ",\n")
   print(_p(1, "map_name", sanatize(server.Mapname)), ",\n")
-  print(_p(1, "map_file", sanatize(demo.Modellist[0])),",\n")
+  print(_p(1, "map_file", sanatize(server.Modellist[0])),",\n")
   print("\t\"players\": [\n")
   var first = true 
   for (index in state.Players) {
