@@ -156,7 +156,7 @@ func main() {
 			buf := bytes.NewBuffer(nil)
 			io.Copy(buf, rc)
 
-			err, parser.mvd = mvdreader.Load(buf.Bytes())
+			err, parser.mvd = mvdreader.Load(buf.Bytes(), logger)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -167,16 +167,12 @@ func main() {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			err, parser.mvd = mvdreader.Load(read_file)
+			err, parser.mvd = mvdreader.Load(read_file, logger)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
 
-		}
-
-		if logger != nil {
-			parser.mvd.Debug = logger
 		}
 
 		if *json_dump == false {
