@@ -90,6 +90,13 @@ type JsonDump struct {
 	Filename string
 }
 
+func (parser *Parser) clear() {
+	parser.events = nil
+	for x, _ := range parser.stats {
+		parser.stats[x] = Stats{}
+	}
+}
+
 func main() {
 	var parser Parser
 	var logger *log.Logger
@@ -137,6 +144,7 @@ func main() {
 
 	for _, filename := range flag.Args() {
 		parser.filename = filename
+		parser.clear()
 
 		r, err := zip.OpenReader(filename)
 		defer r.Close()
@@ -206,13 +214,13 @@ func main() {
 			parser.handlePlayerEvents()
 
 			if err != nil {
-				fmt.Println(err)
+				fmt.Println(filename, " - ", err)
 				os.Exit(1)
 			}
 			if *json_dump == false {
 				err = parser.VmDemoFrame()
 				if err != nil {
-					fmt.Println(err)
+					fmt.Println(filename, " - ", err)
 					os.Exit(1)
 				}
 			}
