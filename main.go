@@ -92,9 +92,7 @@ type JsonDump struct {
 
 func (parser *Parser) clear() {
 	parser.events = nil
-	for x, _ := range parser.stats {
-		parser.stats[x] = Stats{}
-	}
+	parser.stats = [32]Stats{}
 }
 
 func main() {
