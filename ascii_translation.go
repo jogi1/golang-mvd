@@ -8,27 +8,29 @@ import (
 
 var qw_ascii_table []rune
 
-func (mvd *Mvd) Ascii_Init() {
-	ascii_table, err := ioutil.ReadFile("ascii.table")
+func (parser *Parser) Ascii_Init(ascii_table_file string) error {
+	ascii_table, err := ioutil.ReadFile(ascii_table_file)
 	if err != nil {
 		err = nil
 		s, err := Asset("data/ascii.table")
 		if err != nil {
-			mvd.Error.Fatal(err)
+			return err
 		}
-		qw_ascii_table = []rune(string(s))
-		return
+		parser.ascii_table = []rune(string(s))
+		return nil
 	}
 	s := string(ascii_table)
 	s = strings.TrimRight(s, "\r\n")
 	qw_ascii_table = []rune(string(ascii_table))
+	parser.ascii_table = qw_ascii_table
+	return nil
 }
 
-func sanatize_name(name string) string {
+func (parser *Parser) sanatize_name(name string) string {
 	r := []byte(name)
 	var b strings.Builder
 	for _, ri := range r {
-		fmt.Fprintf(&b, "%c", qw_ascii_table[uint(ri)])
+		fmt.Fprintf(&b, "%c", parser.ascii_table[uint(ri)])
 	}
 	return b.String()
 }

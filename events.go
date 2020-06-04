@@ -1,122 +1,106 @@
 package main
 
 import (
-	"fmt"
+	"github.com/jogi1/mvdreader"
 )
 
-//go:generate
-//stringer -type=PE_TYPE
-type PE_TYPE int
-
-const (
-	PE_MOVEMENT    PE_TYPE = 1 << 1
-	PE_STATS       PE_TYPE = 1 << 2
-	PE_ANIMATION   PE_TYPE = 1 << 3
-	PE_NETWORKINFO PE_TYPE = 1 << 4
-	PE_USERINFO    PE_TYPE = 1 << 5
-)
-
-type event struct {
-	player *Player
+func (parser *Parser) clearPlayerEvents() {
+	parser.events = nil
 }
 
-func (mvd *Mvd) EmitEvent(event interface{}) {
-	fmt.Println("fuck you parser!")
-}
-
-func (mvd *Mvd) EmitEventPlayer(player *Player, pnum byte, pe_type PE_TYPE) {
-	//fmt.Printf("player (%s) changed in frame(%d)\n", player.Name, mvd.frame)
-	player.event_info.pnum = pnum
-	player.event_info.events |= pe_type
-}
-
-func (mvd *Mvd) HandlePlayerEvents() {
-	for _, __player := range mvd.state.Players {
+func (parser *Parser) handlePlayerEvents() {
+	for _, __player := range parser.mvd.State.Players {
 		player := &__player
-		player_num := int(player.event_info.pnum)
-		if player.event_info.events == 0 {
+		player_num := int(player.EventInfo.Pnum)
+		stat := &parser.stats[player_num]
+		if player.EventInfo.Events == 0 {
 			continue
 		}
-		p := &mvd.state_last_frame.Players[player.event_info.pnum]
+		p := &parser.mvd.State_last_frame.Players[player.EventInfo.Pnum]
 		if p.Userid != player.Userid {
 			// @TODO: Handle this better
 			return
 		}
-		if player.event_info.events&PE_STATS == PE_STATS {
+		if player.EventInfo.Events&mvdreader.PE_STATS == mvdreader.PE_STATS {
 			if player.Health > 0 && p.Health <= 0 {
 				e := Event_Player{EPT_Spawn, player_num}
-				mvd.state.Events = append(mvd.state.Events, e)
+				parser.events = append(parser.events, e)
+			}
+
+			if player.Frags > p.Frags {
+				stat.Kills += player.Frags - p.Frags
+				e := Event_Player{EPT_Kill, player_num}
+				parser.events = append(parser.events, e)
 			}
 			if player.Health <= 0 && p.Health > 0 {
-				player.Deaths += 1
+				stat.Deaths += 1
 				e := Event_Player{EPT_Death, player_num}
-				mvd.state.Events = append(mvd.state.Events, e)
+				parser.events = append(parser.events, e)
 			}
 
 			if player.Frags < p.Frags {
 				if player.Health <= 0 {
-					player.Suicides += 1
+					stat.Suicides += 1
 					e := Event_Player{EPT_Suicide, player_num}
-					mvd.state.Events = append(mvd.state.Events, e)
+					parser.events = append(parser.events, e)
 				} else {
-					player.Teamkills += 1
+					stat.Teamkills += 1
 					e := Event_Player{EPT_Teamkill, player_num}
-					mvd.state.Events = append(mvd.state.Events, e)
+					parser.events = append(parser.events, e)
 				}
 			}
 
 			if player.Items != p.Items {
-				player.Itemstats.SuperShotgun.CheckItem(mvd, IT_SUPER_SHOTGUN, player, p)
-				player.Itemstats.NailGun.CheckItem(mvd, IT_NAILGUN, player, p)
-				player.Itemstats.SuperNailGun.CheckItem(mvd, IT_SUPER_NAILGUN, player, p)
-				player.Itemstats.GrenadeLauncher.CheckItem(mvd, IT_GRENADE_LAUNCHER, player, p)
-				player.Itemstats.RocketLauncher.CheckItem(mvd, IT_ROCKET_LAUNCHER, player, p)
-				player.Itemstats.LightningGun.CheckItem(mvd, IT_LIGHTNING, player, p)
+				itemstat := &parser.stats[player.EventInfo.Pnum]
+				itemstat.SuperShotgun.CheckItem(parser, mvdreader.IT_SUPER_SHOTGUN, player, p)
+				itemstat.NailGun.CheckItem(parser, mvdreader.IT_NAILGUN, player, p)
+				itemstat.SuperNailGun.CheckItem(parser, mvdreader.IT_SUPER_NAILGUN, player, p)
+				itemstat.GrenadeLauncher.CheckItem(parser, mvdreader.IT_GRENADE_LAUNCHER, player, p)
+				itemstat.RocketLauncher.CheckItem(parser, mvdreader.IT_ROCKET_LAUNCHER, player, p)
+				itemstat.LightningGun.CheckItem(parser, mvdreader.IT_LIGHTNING, player, p)
 
-				player.Itemstats.GreenArmor.CheckItem(mvd, IT_ARMOR1, player, p)
-				player.Itemstats.YellowArmor.CheckItem(mvd, IT_ARMOR2, player, p)
-				player.Itemstats.RedArmor.CheckItem(mvd, IT_ARMOR3, player, p)
+				itemstat.GreenArmor.CheckItem(parser, mvdreader.IT_ARMOR1, player, p)
+				itemstat.YellowArmor.CheckItem(parser, mvdreader.IT_ARMOR2, player, p)
+				itemstat.RedArmor.CheckItem(parser, mvdreader.IT_ARMOR3, player, p)
 
-				player.Itemstats.MegaHealth.CheckItem(mvd, IT_SUPERHEALTH, player, p)
-				player.Itemstats.Quad.CheckItem(mvd, IT_QUAD, player, p)
-				player.Itemstats.Pentagram.CheckItem(mvd, IT_INVULNERABILITY, player, p)
-				player.Itemstats.Ring.CheckItem(mvd, IT_INVISIBILITY, player, p)
+				itemstat.MegaHealth.CheckItem(parser, mvdreader.IT_SUPERHEALTH, player, p)
+				itemstat.Quad.CheckItem(parser, mvdreader.IT_QUAD, player, p)
+				itemstat.Pentagram.CheckItem(parser, mvdreader.IT_INVULNERABILITY, player, p)
+				itemstat.Ring.CheckItem(parser, mvdreader.IT_INVISIBILITY, player, p)
 			}
 		}
-		player.event_info.events = 0
-		player.event_info.pnum = 0
 	}
 }
 
-func (s *Weapon_Stat) CheckItem(mvd *Mvd, iitem IT_TYPE, cf, lf *Player) int {
+func (s *Weapon_Stat) CheckItem(parser *Parser, iitem mvdreader.IT_TYPE, cf, lf *mvdreader.Player) int {
 	item := int(iitem)
 	if cf.Items&item == item && lf.Items&item == 0 {
 		s.Pickup += 1
-		e := Event_Player_Item{EPT_Pickup, int(cf.event_info.pnum), iitem}
-		mvd.state.Events = append(mvd.state.Events, e)
+		e := Event_Player_Item{EPT_Pickup, int(cf.EventInfo.Pnum), iitem}
+		parser.events = append(parser.events, e)
 		return 1
 	}
 	if cf.Items&item == 0 && lf.Items&item == item {
 		s.Drop += 1
-		e := Event_Player_Item{EPT_Drop, int(cf.event_info.pnum), iitem}
-		mvd.state.Events = append(mvd.state.Events, e)
+		e := Event_Player_Item{EPT_Drop, int(cf.EventInfo.Pnum), iitem}
+		parser.events = append(parser.events, e)
 		return -1
 	}
 	return 0
 }
 
-func (s *Armor_Stat) CheckItem(mvd *Mvd, iitem IT_TYPE, cf, lf *Player) {
+func (s *Armor_Stat) CheckItem(parser *Parser, iitem mvdreader.IT_TYPE, cf, lf *mvdreader.Player) {
 	item := int(iitem)
 	if cf.Items&item == item && lf.Items&item == 0 {
-		s.Pickup += 1
-		e := Event_Player_Item{EPT_Drop, int(cf.event_info.pnum), iitem}
-		mvd.state.Events = append(mvd.state.Events, e)
+		s.Pickup++
+		e := Event_Player_Item{EPT_Drop, int(cf.EventInfo.Pnum), iitem}
+		parser.events = append(parser.events, e)
 	}
 	if cf.Items&item == item && lf.Items&item == item {
 		if cf.Armor > lf.Armor {
-			s.Pickup += 1
-			e := Event_Player_Item{EPT_Drop, int(cf.event_info.pnum), iitem}
-			mvd.state.Events = append(mvd.state.Events, e)
+			s.Pickup++
+			e := Event_Player_Item{EPT_Drop, int(cf.EventInfo.Pnum), iitem}
+			parser.events = append(parser.events, e)
 		}
 		if cf.Armor < lf.Armor {
 			s.Damage_Absorbed += lf.Armor - cf.Armor
@@ -124,20 +108,15 @@ func (s *Armor_Stat) CheckItem(mvd *Mvd, iitem IT_TYPE, cf, lf *Player) {
 	}
 }
 
-func (s *Item_Stat) CheckItem(mvd *Mvd, iitem IT_TYPE, cf, lf *Player) {
+func (s *Item_Stat) CheckItem(parser *Parser, iitem mvdreader.IT_TYPE, cf, lf *mvdreader.Player) {
 	item := int(iitem)
 	if cf.Items&item == item && lf.Items&item == 0 {
-		s.Pickup += 1
+		s.Pickup++
 	}
 
-	if iitem == IT_SUPERHEALTH {
+	if iitem == mvdreader.IT_SUPERHEALTH {
 		if cf.Items&item == item && lf.Health > 100 && cf.Health > lf.Health {
-			s.Pickup += 1
+			s.Pickup++
 		}
 	}
-}
-
-func (mvd *Mvd) EmitEventSound(sound *Sound) {
-	sound.Frame = mvd.frame
-	mvd.state.SoundsActive = append(mvd.state.SoundsActive, *sound)
 }

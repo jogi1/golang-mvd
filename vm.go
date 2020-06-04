@@ -2,17 +2,18 @@ package main
 
 import (
 	"fmt"
+	"github.com/jogi1/mvdreader"
 	"github.com/robertkrimen/otto"
 	"strconv"
 	"strings"
 )
 
-func (mvd *Mvd) InitVM(script []byte, name string) error {
+func (parser *Parser) InitVM(script []byte, name string) error {
 	vm := otto.New()
-	mvd.vm = vm
+	parser.vm = vm
 
 	vm.Set("sanatize", func(in string) string {
-		return sanatize_name(in)
+		return parser.sanatize_name(in)
 	})
 
 	/*
@@ -40,8 +41,8 @@ func (mvd *Mvd) InitVM(script []byte, name string) error {
 
 	name_num := "stats = { "
 	num_name := "stats_name = { "
-	for i := STAT_HEALTH; i < STAT_ACTIVEWEAPON; i++ {
-		name := strings.TrimPrefix(strings.ToLower((STAT_TYPE(i)).String()), "stat_")
+	for i := mvdreader.STAT_HEALTH; i < mvdreader.STAT_ACTIVEWEAPON; i++ {
+		name := strings.TrimPrefix(strings.ToLower((mvdreader.STAT_TYPE(i)).String()), "stat_")
 		num := strconv.Itoa(int(i))
 		name_num = name_num + name + ": " + num + ","
 		num_name = num_name + num + ": \"" + name + "\","
@@ -51,14 +52,13 @@ func (mvd *Mvd) InitVM(script []byte, name string) error {
 	s := name_num + num_name
 	_, err := vm.Run(s)
 	if err != nil {
-		mvd.Error.Fatal("setting stats failed with: ", err)
 		return err
 	}
 
 	name_num = "items = { "
 	num_name = "items_name = { "
-	for i := IT_SHOTGUN; i <= IT_SIGIL4; i = i << 1 {
-		name := strings.TrimPrefix(strings.ToLower((IT_TYPE(i)).String()), "it_")
+	for i := mvdreader.IT_SHOTGUN; i <= mvdreader.IT_SIGIL4; i = i << 1 {
+		name := strings.TrimPrefix(strings.ToLower((mvdreader.IT_TYPE(i)).String()), "it_")
 		num := strconv.Itoa(int(i))
 		name_num = name_num + name + ": " + num + ","
 		num_name = num_name + num + ": \"" + name + "\","
@@ -68,7 +68,6 @@ func (mvd *Mvd) InitVM(script []byte, name string) error {
 	s = name_num + num_name
 	_, err = vm.Run(s)
 	if err != nil {
-		mvd.Error.Fatal("setting items failed with: ", err)
 		return err
 	}
 
@@ -85,55 +84,47 @@ func (mvd *Mvd) InitVM(script []byte, name string) error {
 	s = name_num + num_name
 	_, err = vm.Run(s)
 	if err != nil {
-		mvd.Error.Fatal("setting items failed with: ", err)
 		return err
 	}
 
 	_, err = vm.Run(script)
 	if err != nil {
-		mvd.Error.Fatal("loading (", name, ") failed with: ", err)
 		return err
 	}
+
 	frame_function, err := vm.Get("on_frame")
 	if err == nil {
-		mvd.vm_frame_function = &frame_function
+		if frame_function != otto.UndefinedValue() {
+			parser.vm_frame_function = &frame_function
+		}
 	}
 	finish_function, err := vm.Get("on_finish")
 	if err == nil {
-		mvd.vm_finish_function = &finish_function
+		if finish_function != otto.UndefinedValue() {
+			parser.vm_finish_function = &finish_function
+		}
 	}
-	mvd.vm_initialized = true
 	return nil
 }
 
-func (mvd *Mvd) VmDemoFrame() {
-	if mvd.vm_initialized == false {
-		return
+func (parser *Parser) VmDemoFrame() error {
+	if parser.vm_frame_function == nil {
+		return nil
 	}
-	if mvd.vm_frame_function == nil {
-		return
-	}
-	//fmt.Println(len(mvd.state.Events))
-	_, err := mvd.vm_frame_function.Call(*mvd.vm_frame_function, mvd.state, mvd.state_last_frame, mvd.state.Events)
+	_, err := parser.vm_frame_function.Call(*parser.vm_frame_function, parser.mvd.State, parser.mvd.State_last_frame, parser.events, parser.stats, parser.mvd.Server)
 	if err != nil {
-		mvd.Error.Fatal(err)
+		return err
 	}
+	return nil
 }
 
-func (mvd *Mvd) VmDemoFinished() {
-	if mvd.vm_initialized == false {
-		return
+func (parser *Parser) VmDemoFinished() error {
+	if parser.vm_finish_function == nil {
+		return nil
 	}
-	if mvd.vm_finish_function == nil {
-		return
-	}
-	vm := mvd.vm
-	err := vm.Set("demo", mvd.state)
+	_, err := parser.vm_finish_function.Call(*parser.vm_finish_function, parser.mvd.State, parser.stats, parser.mvd.Demo, parser.mvd.Server)
 	if err != nil {
-		mvd.Error.Fatal(err)
+		return err
 	}
-	_, err = mvd.vm_finish_function.Call(*mvd.vm_finish_function)
-	if err != nil {
-		mvd.Error.Fatal(err)
-	}
+	return nil
 }
