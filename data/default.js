@@ -6,7 +6,7 @@ function _p (indent_level, key, value) {
   return m + "\"" + key + "\": \"" + value + "\""
 }
 
-function on_finish (state, stats, server) {
+function on_finish (state, stats, server, fragmessages) {
   print("{\n")
   print(_p(1, "hostname", sanatize(server.Hostname)), ",\n")
   print(_p(1, "map_name", sanatize(server.Mapname)), ",\n")
@@ -36,7 +36,13 @@ function on_finish (state, stats, server) {
     print(JSON.stringify(stat) + "\n")
     print("\t\t}")
   }
-  print("\n\t\]\n")
+  print("\n\t\],\n")
+  print("\n\t\fragmessages: [\n")
+  for (index in fragmessages) {
+    fragmessage = fragmessages[index]
+    print("\t\t" + JSON.stringify(fragmessage) + ",\n")
+  }
+  print("\t]\n")
   print("}\n")
 }
 

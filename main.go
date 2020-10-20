@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/jogi1/golang-fragfile"
 	"github.com/jogi1/mvdreader"
 	"github.com/robertkrimen/otto"
 	"io"
@@ -82,6 +83,9 @@ type Parser struct {
 	stats              [32]Stats
 	filename           string
 	output_file        *os.File
+	fragfile           *fragfile.Fragfile
+	fragmessagesFrame  []*fragfile.FragMessage
+	fragmessages       []*fragfile.FragMessage
 }
 
 type JsonDump struct {
@@ -103,6 +107,7 @@ func main() {
 	debug := flag.Bool("debug", false, "debug output enabled")
 	output_script := flag.String("output_script", "data/default.js", "script to run")
 	ascii_table_file := flag.String("ascii_table", "data/ascii.table", "ascii translation table file")
+	fragfile_name := flag.String("fragfile", "", "fragfile to use for parsing frag messages")
 	json_dump := flag.Bool("json_dump", false, "do not run a script, just dump all info as json")
 	output_file := flag.String("output_file", "stdout", "output target")
 
@@ -117,6 +122,15 @@ func main() {
 		}
 		parser.output_file = f
 		defer f.Close()
+	}
+
+	if len(*fragfile_name) > 0 {
+		fragfilep, err := fragfile.FragfileLoadFile(*fragfile_name)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		parser.fragfile = fragfilep
 	}
 
 	if *debug {
@@ -206,7 +220,19 @@ func main() {
 		for {
 			err, done := parser.mvd.ParseFrame()
 			parser.handlePlayerEvents()
-
+			if parser.fragfile != nil {
+				for _, message := range parser.mvd.State.Messages {
+					fm, err := parser.fragfile.ParseMessage(message.Message)
+					if err != nil {
+						fmt.Println(filename, " - ", err)
+						os.Exit(1)
+					}
+					if fm != nil {
+						parser.fragmessages = append(parser.fragmessages, fm)
+						parser.fragmessagesFrame = append(parser.fragmessagesFrame, fm)
+					}
+				}
+			}
 			if err != nil {
 				fmt.Println(filename, " - ", err)
 				os.Exit(1)
@@ -222,6 +248,7 @@ func main() {
 				break
 			}
 			parser.clearPlayerEvents()
+			parser.fragmessagesFrame = nil
 		}
 
 		if *json_dump == false {
@@ -235,7 +262,7 @@ func main() {
 			jsonS.Filename = parser.filename
 			jsonS.Mvd = &parser.mvd
 			jsonS.Stats = parser.stats
-			js, err := json.MarshalIndent(jsonS, "", "")
+			js, err := json.MarshalIndent(jsonS, "", "\t")
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)

@@ -1,4 +1,4 @@
-function on_frame(current, last, events, stats, server) {
+function on_frame(current, last, events, stats, server, fragmessages) {
   for (e in events) {
     e = events[e]
     if (e.Type == event_types.death) {
