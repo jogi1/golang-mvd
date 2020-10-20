@@ -89,9 +89,10 @@ type Parser struct {
 }
 
 type JsonDump struct {
-	Mvd      *mvdreader.Mvd
-	Stats    [32]Stats
-	Filename string
+	Mvd          *mvdreader.Mvd
+	Stats        [32]Stats
+	Filename     string
+	Fragmessages []*fragfile.FragMessage
 }
 
 func (parser *Parser) clear() {
@@ -262,6 +263,7 @@ func main() {
 			jsonS.Filename = parser.filename
 			jsonS.Mvd = &parser.mvd
 			jsonS.Stats = parser.stats
+			jsonS.Fragmessages = parser.fragmessages
 			js, err := json.MarshalIndent(jsonS, "", "\t")
 			if err != nil {
 				fmt.Println(err)
