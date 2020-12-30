@@ -1,9 +1,5 @@
 package main
 
-import (
-	"fmt"
-)
-
 func (parser *Parser) handlePlayerDisconnects() {
 	for _, p := range parser.mvd.State.Players {
 
