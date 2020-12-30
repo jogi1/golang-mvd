@@ -127,7 +127,7 @@ func (parser *Parser) VmDemoFinished() error {
 	if parser.vm_finish_function == nil {
 		return nil
 	}
-	_, err := parser.vm_finish_function.Call(*parser.vm_finish_function, parser.mvd.State, parser.stats, parser.mvd.Server, parser.fragmessages)
+	_, err := parser.vm_finish_function.Call(*parser.vm_finish_function, parser.mvd.State, parser.stats, parser.mvd.Server, parser.fragmessages, parser.players)
 	if err != nil {
 		return err
 	}

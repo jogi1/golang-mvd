@@ -86,6 +86,7 @@ type Parser struct {
 	fragfile           *fragfile.Fragfile
 	fragmessagesFrame  []*fragfile.FragMessage
 	fragmessages       []*fragfile.FragMessage
+	players            map[int]mvdreader.Player
 }
 
 type JsonDump struct {
@@ -93,17 +94,24 @@ type JsonDump struct {
 	Stats        [32]Stats
 	Filename     string
 	Fragmessages []*fragfile.FragMessage
+	Players      map[int]mvdreader.Player
+}
+
+func (parser *Parser) init() {
+	parser.players = make(map[int]mvdreader.Player)
 }
 
 func (parser *Parser) clear() {
 	parser.events = nil
 	parser.stats = [32]Stats{}
+	parser.players = make(map[int]mvdreader.Player)
 }
 
 func main() {
 	var parser Parser
 	var logger *log.Logger
 
+	parser.init()
 	debug_file := flag.String("debug_file", "stdout", "debug output target")
 	debug := flag.Bool("debug", false, "debug output enabled")
 	output_script := flag.String("output_script", "data/default.js", "script to run")
@@ -221,6 +229,7 @@ func main() {
 		for {
 			err, done := parser.mvd.ParseFrame()
 			parser.handlePlayerEvents()
+			parser.handlePlayerDisconnects()
 			if parser.fragfile != nil {
 				for _, message := range parser.mvd.State.Messages {
 					fm, err := parser.fragfile.ParseMessage(message.Message)
@@ -264,6 +273,7 @@ func main() {
 			jsonS.Mvd = &parser.mvd
 			jsonS.Stats = parser.stats
 			jsonS.Fragmessages = parser.fragmessages
+			jsonS.Players = parser.players
 			js, err := json.MarshalIndent(jsonS, "", "\t")
 			if err != nil {
 				fmt.Println(err)
