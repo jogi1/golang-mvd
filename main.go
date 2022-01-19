@@ -74,31 +74,37 @@ type Event_Player_Stat struct {
 }
 
 type Parser struct {
-	debug              bool
-	scriptname         string
-	mvd                mvdreader.Mvd
-	vm                 *otto.Otto
-	vm_finish_function *otto.Value
-	vm_frame_function  *otto.Value
-	events             []interface{}
-	ascii_table        []rune
-	stats              map[int]*Stats
-	filename           string
-	output_file        *os.File
-	fragfile           *fragfile.Fragfile
-	fragmessagesFrame  []*fragfile.FragMessage
-	fragmessages       []*fragfile.FragMessage
-	players            map[int]mvdreader.Player
-	mod_parser         *Mod
+	Flags               ParserFlags
+	debug               bool
+	scriptname          string
+	mvd                 mvdreader.Mvd
+	vm                  *otto.Otto
+	vm_finish_function  *otto.Value
+	vm_frame_function   *otto.Value
+	vm_init_function    *otto.Value
+	events              []interface{}
+	ascii_table         []rune
+	stats               map[int]*Stats
+	filename            string
+	output_file         *os.File
+	fragfile            *fragfile.Fragfile
+	fragmessagesFrame   []*fragfile.FragMessage
+	fragmessages        []*fragfile.FragMessage
+	players             map[int]mvdreader.Player
+	mod_parser          *Mod
+	logger              *log.Logger
+	PlayersFrameCurrent []*ParserPlayer
+	PlayersFrameLast    []*ParserPlayer
 }
 
 type JsonDump struct {
-	Mvd           *mvdreader.Mvd
-	Stats         map[int]*Stats
-	Filename      string
-	Fragmessages  []*fragfile.FragMessage
-	Players       map[int]mvdreader.Player
-	ModParserInfo interface{}
+	Mvd                *mvdreader.Mvd
+	Stats              map[int]*Stats
+	Filename           string
+	Fragmessages       []*fragfile.FragMessage
+	Players            map[int]mvdreader.Player
+	ModParserInfo      interface{}
+	PlayersAccumulated []*ParserPlayer
 }
 
 func (parser *Parser) init() {
@@ -112,60 +118,249 @@ func (parser *Parser) clear() {
 	parser.players = make(map[int]mvdreader.Player)
 }
 
-func main() {
-	var parser Parser
-	var logger *log.Logger
+type ParserFlags struct {
+	AggregatePlayerInfo  bool    // aggregate all possible info into players
+	Debug                bool    // debug prints
+	DebugFile            *string // output file (filename|stdout|stderr)
+	PlayerEventsDisabled bool    // disable player event generation
+	ModParserDisabled    bool    // disable mod stat parser
+	Script               *string // script to be run in the vm
+	ScriptBuffer         *[]byte // script to be run in the vm
+	ScriptBufferName     *string // script to be run in the vm
+	AsciiTable           *string // ascii table to be used
+	AsciiTableFile       *string // ascii table file to be used
+	FragFile             *string // fragfile
+	FragFileBuffer       *[]byte // fragfile
+	JsonDump             bool
+	OutputFile           *string // if not set defaults to stdout
+	Logger               *log.Logger
+	RetainFrames         bool // retain parser frames
+	WpsParserEnabled     bool // retain parser frames
+}
 
-	parser.init()
-	debug_file := flag.String("debug_file", "stdout", "debug output target")
-	debug := flag.Bool("debug", false, "debug output enabled")
-	parser.debug = *debug
-	player_events_disabled := flag.Bool("player_events_disabled", false, "disable player events")
-	output_script := flag.String("output_script", "data/default.js", "script to run")
-	ascii_table_file := flag.String("ascii_table", "data/ascii.table", "ascii translation table file")
-	fragfile_name := flag.String("fragfile", "", "fragfile to use for parsing frag messages")
-	json_dump := flag.Bool("json_dump", false, "do not run a script, just dump all info as json")
-	output_file := flag.String("output_file", "stdout", "output target")
+func ParserNew(flags ParserFlags) (*Parser, error) {
+	p := new(Parser)
+	p.init()
+	p.Flags = flags
 
-	flag.Parse()
-
-	if *output_file != "stdout" {
-		f, err := os.OpenFile(*output_file,
-			os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+	if p.Flags.OutputFile != nil {
+		if *p.Flags.OutputFile != "stdout" {
+			f, err := os.OpenFile(*p.Flags.OutputFile,
+				os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+			if err != nil {
+				return nil, err
+			}
+			p.output_file = f
 		}
-		parser.output_file = f
-		defer f.Close()
 	}
 
-	if len(*fragfile_name) > 0 {
-		fragfilep, err := fragfile.FragfileLoadFile(*fragfile_name)
+	// buffers take presidence
+	if p.Flags.FragFileBuffer != nil {
+		fragfilep, err := fragfile.FragfileLoadByte(*p.Flags.FragFileBuffer)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return nil, err
 		}
-		parser.fragfile = fragfilep
+		p.fragfile = fragfilep
+	} else if p.Flags.FragFile != nil {
+		fragfilep, err := fragfile.FragfileLoadFile(*p.Flags.FragFile)
+		if err != nil {
+			return nil, err
+		}
+		p.fragfile = fragfilep
 	}
 
-	if *debug {
-		if *debug_file != "stdout" {
-			f, err := os.OpenFile(*debug_file,
+	if p.Flags.Logger != nil {
+		p.logger = p.Flags.Logger
+	} else if p.Flags.Debug {
+		if *p.Flags.DebugFile != "stdout" {
+			f, err := os.OpenFile(*p.Flags.DebugFile,
 				os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			defer f.Close()
-
-			logger = log.New(f, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
+			p.logger = log.New(f, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
 		} else {
-			logger = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
+			p.logger = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
 		}
 	}
 
-	parser.ModInfoParserInit()
+	if p.Flags.AsciiTable != nil {
+		err := p.asciiInitString(*p.Flags.AsciiTable)
+		if err != nil {
+			return nil, err
+		}
+	} else if p.Flags.AsciiTableFile != nil {
+		err := p.asciiInitFile(*p.Flags.AsciiTableFile)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if !p.Flags.ModParserDisabled {
+		p.ModInfoParserInit()
+	}
+
+	if p.Flags.ScriptBuffer != nil {
+		name := "__loaded_from_buffer__"
+		if p.Flags.ScriptBufferName != nil {
+			name = *p.Flags.ScriptBufferName
+		}
+		err := p.InitVM(*p.Flags.ScriptBuffer, name)
+		if err != nil {
+			return nil, err
+		}
+	} else if p.Flags.Script != nil {
+		script, err := ioutil.ReadFile(*p.Flags.Script)
+		if err != nil {
+			return nil, err
+		}
+		err = p.InitVM(script, *p.Flags.Script)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return p, nil
+}
+
+func (p *Parser) LoadFile(filename string) error {
+	read_file, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	return p.LoadByte(read_file, filename)
+}
+
+func (p *Parser) LoadByte(demo []byte, filename string) error {
+	err, mvd := mvdreader.Load(demo, p.logger)
+	if err != nil {
+		return err
+	}
+	p.mvd = mvd
+	return err
+}
+
+func (p *Parser) Parse() error {
+	if p.vm != nil {
+		err := p.VmDemoInit()
+		if err != nil {
+			return err
+		}
+	}
+
+	for {
+		err := p.PlayersNewFrame()
+		if err != nil {
+			return err
+		}
+
+		err, done := p.mvd.ParseFrame()
+		if err != nil {
+			return err
+		}
+		if !p.Flags.PlayerEventsDisabled {
+			p.handlePlayerEvents()
+			p.handlePlayerDisconnects()
+		}
+
+		if p.Flags.WpsParserEnabled {
+			for _, message := range p.mvd.State.StuffText {
+				p.WpsParserParse(message)
+			}
+		}
+
+		if !p.Flags.ModParserDisabled {
+			if p.mod_parser == nil {
+				p.ModInfoParserFind()
+			} else {
+				err := p.mod_parser.Frame(p)
+				if err != nil {
+					return fmt.Errorf("mod parser frame: %s - %s error: %s", p.mod_parser.Name, p.mod_parser.Version, err)
+				}
+			}
+		}
+
+		if p.fragfile != nil {
+			for _, message := range p.mvd.State.Messages {
+				fm, err := p.fragfile.ParseMessage(message.Message)
+				if err != nil {
+					return err
+				}
+				if fm != nil {
+					p.fragmessages = append(p.fragmessages, fm)
+					p.fragmessagesFrame = append(p.fragmessagesFrame, fm)
+				}
+			}
+		}
+		if p.vm != nil {
+			err = p.VmDemoFrame()
+			if err != nil {
+				return err
+			}
+		}
+
+		p.clearPlayerEvents()
+		p.fragmessagesFrame = nil
+
+		if done {
+			break
+		}
+	}
+
+	if p.mod_parser != nil {
+		err := p.mod_parser.End(p)
+		if err != nil {
+			return fmt.Errorf(
+				"mod parser end: %s - %s error: %s",
+				p.mod_parser.Name,
+				p.mod_parser.Version,
+				err,
+			)
+		}
+	}
+
+	if p.vm != nil {
+		err := p.VmDemoFinished()
+		return err
+	}
+	return nil
+}
+
+func main() {
+	debug_file := flag.String("debug_file", "stdout", "debug output target")
+	debug := flag.Bool("debug", false, "debug output enabled")
+	player_events_disabled := flag.Bool("player_events_disabled", false, "disable player events")
+	script := flag.String("script", "", "script to run")
+	ascii_table_file := flag.String("ascii_table", "data/ascii.table", "ascii translation table file")
+	fragfile := flag.String("fragfile", "", "fragfile to use for parsing frag messages")
+	output_file := flag.String("output_file", "stdout", "output target")
+	retain_frames := flag.Bool("retain_frames", false, "retain parser frames")
+	aggregatePlayerInfo := flag.Bool("aggregate_player_info", true, "aggregate all possible info sources in a player")
+	wpsParserEnabled := flag.Bool("wps_parser_enabled", true, "enable /wps parsing, very expensive")
+
+	flag.Parse()
+
+	var parserFlags ParserFlags
+	parserFlags.WpsParserEnabled = *wpsParserEnabled
+	parserFlags.AggregatePlayerInfo = *aggregatePlayerInfo
+	parserFlags.Debug = *debug
+	parserFlags.DebugFile = debug_file
+	parserFlags.RetainFrames = *retain_frames
+	parserFlags.PlayerEventsDisabled = *player_events_disabled
+	if len(*script) > 0 {
+		parserFlags.Script = script
+	}
+	parserFlags.AsciiTableFile = ascii_table_file
+	if len(*fragfile) > 0 {
+		parserFlags.FragFile = fragfile
+	}
+	parserFlags.OutputFile = output_file
+
+	parser, err := ParserNew(parserFlags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
 	if len(flag.Args()) < 1 {
 		fmt.Println("no demos supplied")
@@ -173,12 +368,10 @@ func main() {
 	}
 
 	for _, filename := range flag.Args() {
-		parser.filename = filename
-		parser.clear()
-
+		// read zip files
 		r, err := zip.OpenReader(filename)
-		defer r.Close()
 		if err == nil {
+			defer r.Close()
 			f := r.File[0]
 			rc, err := f.Open()
 			if err != nil {
@@ -188,7 +381,7 @@ func main() {
 			buf := bytes.NewBuffer(nil)
 			io.Copy(buf, rc)
 
-			err, parser.mvd = mvdreader.Load(buf.Bytes(), logger)
+			err = parser.LoadByte(buf.Bytes(), f.FileInfo().Name())
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -199,7 +392,7 @@ func main() {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			err, parser.mvd = mvdreader.Load(read_file, logger)
+			err = parser.LoadByte(read_file, filename)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -207,110 +400,20 @@ func main() {
 
 		}
 
-		if *json_dump == false {
-			if *output_script == "data/default.js" {
-				s, err := Asset("data/default.js")
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-				err = parser.InitVM(s, "data/default.js")
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-			} else {
-				script, err := ioutil.ReadFile(*output_script)
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-				err = parser.InitVM(script, *output_script)
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-			}
-		}
-
-		err = parser.Ascii_Init(*ascii_table_file)
+		err = parser.Parse()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		for {
-			err, done := parser.mvd.ParseFrame()
-			if !*player_events_disabled {
-				parser.handlePlayerEvents()
-				parser.handlePlayerDisconnects()
-			}
-			if parser.mod_parser == nil {
-				parser.ModInfoParserFind()
-			} else {
-				err := parser.mod_parser.Frame(&parser)
-				if err != nil {
-					fmt.Printf("mod parser frame: %s - %s error: %s\n", parser.mod_parser.Name, parser.mod_parser.Version, err)
-					os.Exit(1)
-				}
-			}
-			if parser.fragfile != nil {
-				for _, message := range parser.mvd.State.Messages {
-					fm, err := parser.fragfile.ParseMessage(message.Message)
-					if err != nil {
-						fmt.Println(filename, " - ", err)
-						os.Exit(1)
-					}
-					if fm != nil {
-						parser.fragmessages = append(parser.fragmessages, fm)
-						parser.fragmessagesFrame = append(parser.fragmessagesFrame, fm)
-					}
-				}
-			}
-			if err != nil {
-				fmt.Println(filename, " - ", err)
-				os.Exit(1)
-			}
-			if *json_dump == false {
-				err = parser.VmDemoFrame()
-				if err != nil {
-					fmt.Println(filename, " - ", err)
-					os.Exit(1)
-				}
-			}
-			if done {
-				break
-			}
-			parser.clearPlayerEvents()
-			parser.fragmessagesFrame = nil
-		}
-
-		if parser.mod_parser != nil {
-			err := parser.mod_parser.End(&parser)
-			if err != nil {
-				fmt.Printf(
-					"mod parser end: %s - %s error: %s\n",
-					parser.mod_parser.Name,
-					parser.mod_parser.Version,
-					err,
-				)
-				os.Exit(1)
-			}
-		}
-
-		if *json_dump == false {
-			err = parser.VmDemoFinished()
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-		} else {
+		if parser.vm == nil || parser.Flags.JsonDump {
 			var jsonS JsonDump
 			jsonS.Filename = parser.filename
 			jsonS.Mvd = &parser.mvd
 			jsonS.Stats = parser.stats
 			jsonS.Fragmessages = parser.fragmessages
 			jsonS.Players = parser.players
+			jsonS.PlayersAccumulated = parser.PlayersFrameCurrent
 
 			if parser.mod_parser != nil {
 				jsonS.ModParserInfo = parser.mod_parser.State
@@ -322,6 +425,7 @@ func main() {
 			}
 			if parser.output_file != nil {
 				parser.output_file.Write(js)
+				parser.output_file.Close()
 			} else {
 				fmt.Println(string(js))
 			}

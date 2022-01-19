@@ -15,39 +15,21 @@ type Mod struct {
 	State   interface{}
 }
 
-type ModParserString struct {
-	p      *Parser
-	String string
-	Byte   []byte
-}
-
-func (p *Parser) ModParserStringNew(b []byte) *ModParserString {
-	s := new(ModParserString)
-	s.p = p
-	s.Set(b)
-	return s
-}
-
-func (s *ModParserString) Set(b []byte) {
-	s.Byte = b
-	s.String = s.p.sanatize_name(string(b))
-}
-
 func (p *Parser) ModParserPlayerNew(b []byte, stat interface{}) *ModParserPlayer {
 	pl := new(ModParserPlayer)
-	pl.Name = p.ModParserStringNew(b)
+	pl.Name = p.ParserStringNew(b)
 	pl.Stat = stat
 	return pl
 }
 
 type ModParserPlayer struct {
-	Name *ModParserString
+	Name *ParserString
 	Stat interface{}
 }
 
 func (p *Parser) ModParserTeamNew(b []byte, stat interface{}) *ModParserTeam {
 	t := new(ModParserTeam)
-	t.Name = p.ModParserStringNew(b)
+	t.Name = p.ParserStringNew(b)
 	t.Stat = stat
 	t.Players = make([]*ModParserPlayer, 0)
 	return t
@@ -58,7 +40,7 @@ func (t *ModParserTeam) PlayerAdd(p *ModParserPlayer) {
 }
 
 type ModParserTeam struct {
-	Name    *ModParserString
+	Name    *ParserString
 	Stat    interface{}
 	Players []*ModParserPlayer
 }

@@ -173,7 +173,7 @@ func KTX_1_4b_Check(serverinfo map[string]string) bool {
 	if !found {
 		return false
 	}
-	if ktxver == "1.40-beta-quakecon-release3" {
+	if strings.HasPrefix(ktxver, "1.40") { //"1.40-beta-quakecon-release3" {
 		ktx1bRegexs.start_parsing = regexp.MustCompile("The match is over\n")
 		ktx1bRegexs.team = regexp.MustCompile("Team (.*)\n")
 		ktx1bRegexs.player_frags = regexp.MustCompile(
@@ -372,7 +372,7 @@ var ktx_top_scorers_list = []KTX_TopScorers{
 }
 
 type ktx_top_scorer struct {
-	Name  *ModParserString
+	Name  *ParserString
 	Value string
 }
 
@@ -455,7 +455,6 @@ func KTX_1_4b_End(p *Parser) error {
 				print_message(line, line_converted)
 				return fmt.Errorf("error parsing stats for team: %s", line[1:index])
 			}
-			print_message(line, line_converted)
 			continue
 		}
 
@@ -481,7 +480,7 @@ func KTX_1_4b_End(p *Parser) error {
 				return fmt.Errorf("top scorer parsing failed")
 			}
 			scorer := new(ktx_top_scorer)
-			scorer.Name = p.ModParserStringNew(line[:index])
+			scorer.Name = p.ParserStringNew(line[:index])
 			scorer.Value = string(line[index+2 : len(line)-1])
 			l := state.TopScorers[currentTopFraggerType]
 			l = append(l, scorer)
@@ -753,333 +752,17 @@ func KTX_1_4b_End(p *Parser) error {
 		}
 		// print_message(line, line_converted)
 	}
-	return nil
-	fmt.Println(currentPlayer)
-	fmt.Println(currentTeam)
-	fmt.Println(currentTeamInfo)
+    for _, kt := range state.Teams {
+        for _, kp := range kt.Players {
+            pp := p.FindPlayer(kp.Name, kt.Name) 
+            if pp != nil {
+                pp.ModStats = kp.Stat
+            }
+
+        }
+    }
 	return nil
 }
-
-/*
-func KTX_1_4b_Frame1(p *Parser) {
-	mpiState := &p.mod_parser_info.state
-	mpInfo := &p.mod_parser_info
-	for _, m := range p.mvd.State.Messages {
-		if m.From != 2 {
-			continue
-		}
-
-		if mpiState.parsingState == ktx1b_state_seeking {
-			if ktx1bRegexs.start_parsing.Match([]byte(m.Message)) {
-				mpiState.parsingState = ktx1b_state_parsing
-			}
-			continue
-		}
-
-		message := []byte(m.Message)
-		message_converted := []byte(m.Message)
-		for i, by := range message {
-			if by > 128 {
-				by -= 128
-			}
-			message_converted[i] = by
-		}
-
-		if mpiState.parsingState == ktx1b_state_parsing {
-			if bytes.Equal(message, ktx1b_message_player_statistics) {
-				mpiState.parsingState = ktx1b_state_parsing_team_name
-				continue
-			}
-		}
-
-		if mpiState.parsingState >= ktx1b_state_parsing {
-			index := bytes.Index(message, []byte{145})
-			if index >= 0 {
-				index += 1
-				if len(message[index:]) > len(ktx1b_message_top_scorers) {
-					if bytes.Equal(message[index:index+len(ktx1b_message_top_scorers)], ktx1b_message_top_scorers) {
-						mpiState.parsingState = ktx1b_state_parsing_top_scorers_frags
-						continue
-					}
-				}
-			}
-		}
-
-		if mpiState.parsingState == ktx1b_state_parsing_top_scorers_frags {
-			fmt.Println("only the frag message")
-			print_message(message, message_converted)
-			continue
-		}
-
-		if mpiState.parsingState == ktx1b_state_parsing_top_scorers {
-			print_message(message, message_converted)
-			continue
-		}
-
-		if mpiState.parsingState >= ktx1b_state_parsing_team_name {
-			if len(message) == len(ktx1b_message_team_match_statistics_end) {
-				if bytes.Equal(message, ktx1b_message_team_match_statistics_end) {
-					mpiState.parsingState = ktx1b_state_parsing_team
-					continue
-				}
-			}
-			s := ktx1bRegexs.team.FindSubmatch(message)
-			if len(s) > 1 {
-				ti := new(ktxTeamInfo)
-				t := ModParserTeam{string(s[1][1 : len(s[1])-2]), ti}
-				mpiState.currentTeam = &t
-				mpInfo.Teams = append(mpInfo.Teams, t)
-				mpiState.parsingState = ktx1b_state_parsing_player
-				continue
-			}
-		}
-
-		if mpiState.parsingState == ktx1b_state_parsing_team {
-			index := bytes.Index(message, ktx1b_message_team_match_statistics_start)
-			if index >= 0 {
-				name := string(message[1 : index-1])
-				cont := false
-				for _, t := range mpInfo.Teams {
-					if name == t.Name {
-						mpiState.currentTeam = &t
-						mpiState.parsingState = ktx1b_state_parsing_team_statistics
-						cont = true
-						break
-					}
-				}
-				if cont {
-					stats := get_stats(
-						message[index:],
-						message_converted[index:],
-						ktx1b_message_team_match_statistics_start,
-						*ktx1bRegexs.player_stats_general,
-					)
-					if stats != nil {
-						if _stat, ok := mpiState.currentTeam.Stat.(*ktxTeamInfo); ok {
-							_stat.WeaponStats = *stats
-						}
-						mpiState.parsingState = ktx1b_state_parsing_team_statistics
-						continue
-					}
-					fmt.Printf("could not extract info for team: %s\n", name)
-					os.Exit(1)
-				}
-				fmt.Printf("unknown team: %s\n", name)
-				os.Exit(1)
-			}
-			continue
-		}
-
-		if mpiState.parsingState == ktx1b_state_parsing_team_statistics {
-			stats := get_stats(
-				message,
-				message_converted,
-				ktx1b_message_team_powerups,
-				*ktx1bRegexs.player_stats_general,
-			)
-			if stats != nil {
-				if _stat, ok := mpiState.currentTeam.Stat.(*ktxTeamInfo); ok {
-					_stat.Powerups = *stats
-				}
-				continue
-			}
-
-			stats = get_stats(
-				message,
-				message_converted,
-				ktx1b_message_team_armormh,
-				*ktx1bRegexs.player_stats_general,
-			)
-			if stats != nil {
-				if _stat, ok := mpiState.currentTeam.Stat.(*ktxTeamInfo); ok {
-					_stat.ArmorMh = *stats
-				}
-				continue
-			}
-
-			stats = get_stats(
-				message,
-				message_converted,
-				ktx1b_message_team_rl,
-				*ktx1bRegexs.player_stats_general,
-			)
-			if stats != nil {
-				if _stat, ok := mpiState.currentTeam.Stat.(*ktxTeamInfo); ok {
-					_stat.Rl = *stats
-				}
-				continue
-			}
-
-			stats = get_stats(
-				message,
-				message_converted,
-				ktx1b_message_team_damage,
-				*ktx1bRegexs.player_stats_general,
-			)
-			if stats != nil {
-				if _stat, ok := mpiState.currentTeam.Stat.(*ktxTeamInfo); ok {
-					_stat.Damage = *stats
-				}
-				continue
-			}
-
-			stats = get_stats(
-				message,
-				message_converted,
-				ktx1b_message_team_time,
-				*ktx1bRegexs.player_stats_general,
-			)
-			if stats != nil {
-				if _stat, ok := mpiState.currentTeam.Stat.(*ktxTeamInfo); ok {
-					_stat.Time = *stats
-				}
-				mpiState.parsingState -= 1
-				continue
-			}
-
-			print_message(message, message_converted)
-			continue
-		}
-
-		if mpiState.parsingState == ktx1b_state_parsing_player {
-			if bytes.Equal(ktx1b_message_player_name_start, message[:2]) {
-				end := 0
-				// @TODO: this might break?
-				for i, v := range message {
-					if v == 58 {
-						end = i
-						break
-					}
-				}
-				name := string(message[2:end])
-				sl := new(ktxPlayerInfo)
-				p := ModParserPlayer{name, mpiState.currentTeam, sl}
-				mpiState.currentPlayer = &p
-				mpInfo.Players = append(mpInfo.Players, p)
-				end += 2
-				s := ktx1bRegexs.player_frags.FindSubmatch(message[end:])
-				if len(s) == 5 {
-					sl.Frags = string(s[1])
-					sl.Rank = string(s[2])
-					sl.FriendKills = string(s[3])
-					sl.Efficiency = string(s[4])
-				}
-				continue
-			}
-
-			if bytes.Equal(message[:4], ktx1b_message_player_wp_stat) {
-				s := ktx1bRegexs.player_wp.FindAllSubmatch(message_converted, -1)
-				ws := make(map[string]string)
-				if len(s) > 0 {
-					for _, ss := range s {
-						ws[string(ss[1])] = string(ss[2])
-					}
-					if _stat, ok := mpiState.currentPlayer.Stat.(*ktxPlayerInfo); ok {
-						_stat.WeaponStats = ws
-					}
-					continue
-				}
-
-			}
-			stats := get_stats(
-				message,
-				message_converted,
-				ktx1b_message_player_rl_skill,
-				*ktx1bRegexs.player_stats_general,
-			)
-			if stats != nil {
-				if _stat, ok := mpiState.currentPlayer.Stat.(*ktxPlayerInfo); ok {
-					_stat.RL_Skills = *stats
-				}
-				continue
-			}
-
-			stats = get_stats(
-				message,
-				message_converted,
-				ktx1b_message_player_armor_mh,
-				*ktx1bRegexs.player_stats_general,
-			)
-			if stats != nil {
-				if _stat, ok := mpiState.currentPlayer.Stat.(*ktxPlayerInfo); ok {
-					_stat.ArmorMh = *stats
-				}
-				continue
-			}
-
-			stats = get_stats(
-				message,
-				message_converted,
-				ktx1b_message_player_powerups,
-				*ktx1bRegexs.player_stats_general,
-			)
-			if stats != nil {
-				if _stat, ok := mpiState.currentPlayer.Stat.(*ktxPlayerInfo); ok {
-					_stat.Powerups = *stats
-				}
-				continue
-			}
-
-			stats = get_stats(message, message_converted, ktx1b_message_player_rl, *ktx1bRegexs.player_stats_general)
-			if stats != nil {
-				if _stat, ok := mpiState.currentPlayer.Stat.(*ktxPlayerInfo); ok {
-					_stat.RL = *stats
-				}
-				continue
-			}
-
-			stats = get_stats(
-				message,
-				message_converted,
-				ktx1b_message_player_damage,
-				*ktx1bRegexs.player_stats_general,
-			)
-			if stats != nil {
-				if _stat, ok := mpiState.currentPlayer.Stat.(*ktxPlayerInfo); ok {
-					_stat.Damage = *stats
-				}
-				continue
-			}
-
-			stats = get_stats(message, message_converted, ktx1b_message_player_time, *ktx1bRegexs.player_stats_general)
-			if stats != nil {
-				if _stat, ok := mpiState.currentPlayer.Stat.(*ktxPlayerInfo); ok {
-					_stat.Time = *stats
-				}
-				continue
-			}
-
-			stats = get_stats(
-				message,
-				message_converted,
-				ktx1b_message_player_streaks,
-				*ktx1bRegexs.player_stats_general,
-			)
-			if stats != nil {
-				if _stat, ok := mpiState.currentPlayer.Stat.(*ktxPlayerInfo); ok {
-					_stat.Streaks = *stats
-				}
-				continue
-			}
-
-			if len(message) > len(ktx1b_message_player_spawnfrags) {
-				if bytes.Equal(
-					message[:len(ktx1b_message_player_spawnfrags)],
-					ktx1b_message_player_spawnfrags,
-				) {
-					s := ktx1bRegexs.player_stats_spawnfrags.FindSubmatch(message)
-					if len(s) > 1 {
-						if _stat, ok := mpiState.currentPlayer.Stat.(*ktxPlayerInfo); ok {
-							_stat.Spawnfrags = string(s[0])
-						}
-						continue
-					}
-				}
-			}
-		}
-	}
-}
-*/
 
 func print_message(message, message_converted []byte) {
 	fmt.Println("Message:")

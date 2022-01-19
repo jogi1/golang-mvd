@@ -14,7 +14,7 @@ func (parser *Parser) InitVM(script []byte, name string) error {
 	parser.vm = vm
 
 	vm.Set("sanatize", func(in string) string {
-		return parser.sanatize_name(in)
+		return parser.SanatizeName(in)
 	})
 
 	/*
@@ -109,6 +109,26 @@ func (parser *Parser) InitVM(script []byte, name string) error {
 		if finish_function != otto.UndefinedValue() {
 			parser.vm_finish_function = &finish_function
 		}
+	}
+	init_function, err := vm.Get("on_finish")
+	if err == nil {
+		if init_function != otto.UndefinedValue() {
+			parser.vm_init_function = &finish_function
+		}
+	}
+	return nil
+}
+
+func (parser *Parser) VmDemoInit() error {
+	if parser.vm_init_function == nil {
+		return nil
+	}
+
+	_, err := parser.vm_frame_function.Call(
+		*parser.vm_init_function)
+
+	if err != nil {
+		return err
 	}
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 
 var qw_ascii_table []rune
 
-func (parser *Parser) Ascii_Init(ascii_table_file string) error {
+func (parser *Parser) asciiInitFile(ascii_table_file string) error {
 	if ascii_table_file == "data/ascii.table" {
 		s, err := Asset("data/ascii.table")
 		if err != nil {
@@ -27,7 +27,12 @@ func (parser *Parser) Ascii_Init(ascii_table_file string) error {
 	return nil
 }
 
-func (parser *Parser) sanatize_name(name string) string {
+func (parser *Parser) asciiInitString(ascii_table string) error {
+	parser.ascii_table = []rune(ascii_table)
+	return nil
+}
+
+func (parser *Parser) SanatizeName(name string) string {
 	r := []byte(name)
 	var b strings.Builder
 	for _, ri := range r {

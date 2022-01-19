@@ -74,6 +74,13 @@ func (parser *Parser) handlePlayerEvents() {
 				itemstat.Pentagram.CheckItem(parser, mvdreader.IT_INVULNERABILITY, player, p)
 				itemstat.Ring.CheckItem(parser, mvdreader.IT_INVISIBILITY, player, p)
 			}
+
+            if parser.Flags.AggregatePlayerInfo {
+                ps := parser.FindPlayerPnum(player_num)
+                if ps != nil {
+                    ps.ParserStats = stat
+                }
+            }
 		}
 	}
 }
