@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/jogi1/mvdreader"
 )
 
@@ -100,22 +98,12 @@ func (s *Weapon_Stat) CheckItem(parser *Parser, iitem mvdreader.IT_TYPE, cf, lf 
 func (s *Armor_Stat) CheckItem(parser *Parser, iitem mvdreader.IT_TYPE, cf, lf *mvdreader.Player) {
 	item := int(iitem)
 	if cf.Items&item == item && lf.Items&item == 0 {
-		if cf.Name == "dib" {
-			if item == int(mvdreader.IT_ARMOR2) {
-				fmt.Println("dib ya: ", parser.mvd.State.Time)
-			}
-		}
 		s.Pickup++
 		e := Event_Player_Item{EPT_Drop, int(cf.EventInfo.Pnum), iitem}
 		parser.events = append(parser.events, e)
 	}
 	if cf.Items&item == item && lf.Items&item == item {
 		if cf.Armor > lf.Armor {
-			if cf.Name == "dib" {
-				if item == int(mvdreader.IT_ARMOR2) {
-					fmt.Println("dib ya: ", parser.mvd.State.Time)
-				}
-			}
 			s.Pickup++
 			e := Event_Player_Item{EPT_Drop, int(cf.EventInfo.Pnum), iitem}
 			parser.events = append(parser.events, e)
