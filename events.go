@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/jogi1/mvdreader"
 )
 
@@ -12,7 +14,6 @@ func (parser *Parser) handlePlayerEvents() {
 	for _, __player := range parser.mvd.State.Players {
 		player := &__player
 		player_num := int(player.EventInfo.Pnum)
-		stat := &parser.stats[player_num]
 		if player.EventInfo.Events == 0 {
 			continue
 		}
@@ -21,6 +22,13 @@ func (parser *Parser) handlePlayerEvents() {
 			// @TODO: Handle this better
 			return
 		}
+
+		stat, ok := parser.stats[player.Userid]
+		if !ok {
+			stat := new(Stats)
+			parser.stats[player.Userid] = stat
+		}
+
 		if player.EventInfo.Events&mvdreader.PE_STATS == mvdreader.PE_STATS {
 			if player.Health > 0 && p.Health <= 0 {
 				e := Event_Player{EPT_Spawn, player_num}
@@ -50,8 +58,8 @@ func (parser *Parser) handlePlayerEvents() {
 				}
 			}
 
-			if player.Items != p.Items {
-				itemstat := &parser.stats[player.EventInfo.Pnum]
+			if player.Items != p.Items || true {
+				itemstat := parser.stats[int(player.Userid)]
 				itemstat.SuperShotgun.CheckItem(parser, mvdreader.IT_SUPER_SHOTGUN, player, p)
 				itemstat.NailGun.CheckItem(parser, mvdreader.IT_NAILGUN, player, p)
 				itemstat.SuperNailGun.CheckItem(parser, mvdreader.IT_SUPER_NAILGUN, player, p)
@@ -92,12 +100,22 @@ func (s *Weapon_Stat) CheckItem(parser *Parser, iitem mvdreader.IT_TYPE, cf, lf 
 func (s *Armor_Stat) CheckItem(parser *Parser, iitem mvdreader.IT_TYPE, cf, lf *mvdreader.Player) {
 	item := int(iitem)
 	if cf.Items&item == item && lf.Items&item == 0 {
+		if cf.Name == "dib" {
+			if item == int(mvdreader.IT_ARMOR2) {
+				fmt.Println("dib ya: ", parser.mvd.State.Time)
+			}
+		}
 		s.Pickup++
 		e := Event_Player_Item{EPT_Drop, int(cf.EventInfo.Pnum), iitem}
 		parser.events = append(parser.events, e)
 	}
 	if cf.Items&item == item && lf.Items&item == item {
 		if cf.Armor > lf.Armor {
+			if cf.Name == "dib" {
+				if item == int(mvdreader.IT_ARMOR2) {
+					fmt.Println("dib ya: ", parser.mvd.State.Time)
+				}
+			}
 			s.Pickup++
 			e := Event_Player_Item{EPT_Drop, int(cf.EventInfo.Pnum), iitem}
 			parser.events = append(parser.events, e)

@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/jogi1/mvdreader"
-	"github.com/robertkrimen/otto"
 	"strconv"
 	"strings"
+
+	"github.com/jogi1/mvdreader"
+	"github.com/robertkrimen/otto"
 )
 
 func (parser *Parser) InitVM(script []byte, name string) error {
@@ -116,7 +117,15 @@ func (parser *Parser) VmDemoFrame() error {
 	if parser.vm_frame_function == nil {
 		return nil
 	}
-	_, err := parser.vm_frame_function.Call(*parser.vm_frame_function, parser.mvd.State, parser.mvd.State_last_frame, parser.events, parser.stats, parser.mvd.Server, parser.fragmessagesFrame)
+	_, err := parser.vm_frame_function.Call(
+		*parser.vm_frame_function,
+		parser.mvd.State,
+		parser.mvd.State_last_frame,
+		parser.events,
+		parser.stats,
+		parser.mvd.Server,
+		parser.fragmessagesFrame,
+	)
 	if err != nil {
 		return err
 	}
@@ -127,7 +136,15 @@ func (parser *Parser) VmDemoFinished() error {
 	if parser.vm_finish_function == nil {
 		return nil
 	}
-	_, err := parser.vm_finish_function.Call(*parser.vm_finish_function, parser.mvd.State, parser.stats, parser.mvd.Server, parser.fragmessages, parser.players)
+	_, err := parser.vm_finish_function.Call(
+		*parser.vm_finish_function,
+		parser.mvd.State,
+		parser.stats,
+		parser.mvd.Server,
+		parser.fragmessages,
+		parser.players,
+		parser.mod_parser.State,
+	)
 	if err != nil {
 		return err
 	}

@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/jogi1/golang-fragfile"
-	"github.com/jogi1/mvdreader"
-	"github.com/robertkrimen/otto"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
+
+	"github.com/jogi1/golang-fragfile"
+	"github.com/jogi1/mvdreader"
+	"github.com/robertkrimen/otto"
 )
 
 type Weapon_Stat struct {
@@ -73,6 +74,7 @@ type Event_Player_Stat struct {
 }
 
 type Parser struct {
+	debug              bool
 	scriptname         string
 	mvd                mvdreader.Mvd
 	vm                 *otto.Otto
@@ -80,30 +82,33 @@ type Parser struct {
 	vm_frame_function  *otto.Value
 	events             []interface{}
 	ascii_table        []rune
-	stats              [32]Stats
+	stats              map[int]*Stats
 	filename           string
 	output_file        *os.File
 	fragfile           *fragfile.Fragfile
 	fragmessagesFrame  []*fragfile.FragMessage
 	fragmessages       []*fragfile.FragMessage
 	players            map[int]mvdreader.Player
+	mod_parser         *Mod
 }
 
 type JsonDump struct {
-	Mvd          *mvdreader.Mvd
-	Stats        [32]Stats
-	Filename     string
-	Fragmessages []*fragfile.FragMessage
-	Players      map[int]mvdreader.Player
+	Mvd           *mvdreader.Mvd
+	Stats         map[int]*Stats
+	Filename      string
+	Fragmessages  []*fragfile.FragMessage
+	Players       map[int]mvdreader.Player
+	ModParserInfo interface{}
 }
 
 func (parser *Parser) init() {
 	parser.players = make(map[int]mvdreader.Player)
+	parser.stats = make(map[int]*Stats)
 }
 
 func (parser *Parser) clear() {
 	parser.events = nil
-	parser.stats = [32]Stats{}
+	parser.stats = make(map[int]*Stats)
 	parser.players = make(map[int]mvdreader.Player)
 }
 
@@ -114,6 +119,8 @@ func main() {
 	parser.init()
 	debug_file := flag.String("debug_file", "stdout", "debug output target")
 	debug := flag.Bool("debug", false, "debug output enabled")
+	parser.debug = *debug
+	player_events_disabled := flag.Bool("player_events_disabled", false, "disable player events")
 	output_script := flag.String("output_script", "data/default.js", "script to run")
 	ascii_table_file := flag.String("ascii_table", "data/ascii.table", "ascii translation table file")
 	fragfile_name := flag.String("fragfile", "", "fragfile to use for parsing frag messages")
@@ -124,7 +131,7 @@ func main() {
 
 	if *output_file != "stdout" {
 		f, err := os.OpenFile(*output_file,
-			os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -145,7 +152,7 @@ func main() {
 	if *debug {
 		if *debug_file != "stdout" {
 			f, err := os.OpenFile(*debug_file,
-				os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -157,6 +164,8 @@ func main() {
 			logger = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
 		}
 	}
+
+	parser.ModInfoParserInit()
 
 	if len(flag.Args()) < 1 {
 		fmt.Println("no demos supplied")
@@ -201,6 +210,10 @@ func main() {
 		if *json_dump == false {
 			if *output_script == "data/default.js" {
 				s, err := Asset("data/default.js")
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
 				err = parser.InitVM(s, "data/default.js")
 				if err != nil {
 					fmt.Println(err)
@@ -228,8 +241,19 @@ func main() {
 
 		for {
 			err, done := parser.mvd.ParseFrame()
-			parser.handlePlayerEvents()
-			parser.handlePlayerDisconnects()
+			if !*player_events_disabled {
+				parser.handlePlayerEvents()
+				parser.handlePlayerDisconnects()
+			}
+			if parser.mod_parser == nil {
+				parser.ModInfoParserFind()
+			} else {
+				err := parser.mod_parser.Frame(&parser)
+				if err != nil {
+					fmt.Printf("mod parser frame: %s - %s error: %s\n", parser.mod_parser.Name, parser.mod_parser.Version, err)
+					os.Exit(1)
+				}
+			}
 			if parser.fragfile != nil {
 				for _, message := range parser.mvd.State.Messages {
 					fm, err := parser.fragfile.ParseMessage(message.Message)
@@ -261,6 +285,19 @@ func main() {
 			parser.fragmessagesFrame = nil
 		}
 
+		if parser.mod_parser != nil {
+			err := parser.mod_parser.End(&parser)
+			if err != nil {
+				fmt.Printf(
+					"mod parser end: %s - %s error: %s\n",
+					parser.mod_parser.Name,
+					parser.mod_parser.Version,
+					err,
+				)
+				os.Exit(1)
+			}
+		}
+
 		if *json_dump == false {
 			err = parser.VmDemoFinished()
 			if err != nil {
@@ -274,6 +311,7 @@ func main() {
 			jsonS.Stats = parser.stats
 			jsonS.Fragmessages = parser.fragmessages
 			jsonS.Players = parser.players
+			jsonS.ModParserInfo = parser.mod_parser.State
 			js, err := json.MarshalIndent(jsonS, "", "\t")
 			if err != nil {
 				fmt.Println(err)
