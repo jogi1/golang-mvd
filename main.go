@@ -311,7 +311,10 @@ func main() {
 			jsonS.Stats = parser.stats
 			jsonS.Fragmessages = parser.fragmessages
 			jsonS.Players = parser.players
-			jsonS.ModParserInfo = parser.mod_parser.State
+
+			if parser.mod_parser != nil {
+				jsonS.ModParserInfo = parser.mod_parser.State
+			}
 			js, err := json.MarshalIndent(jsonS, "", "\t")
 			if err != nil {
 				fmt.Println(err)
