@@ -224,6 +224,7 @@ func ParserNew(flags ParserFlags) (*Parser, error) {
 }
 
 func (p *Parser) LoadFile(filename string) error {
+    p.filename = filename
 	read_file, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
@@ -232,6 +233,7 @@ func (p *Parser) LoadFile(filename string) error {
 }
 
 func (p *Parser) LoadByte(demo []byte, filename string) error {
+    p.filename = filename
 	err, mvd := mvdreader.Load(demo, p.logger)
 	if err != nil {
 		return err

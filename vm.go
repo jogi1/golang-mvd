@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -9,29 +10,42 @@ import (
 	"github.com/robertkrimen/otto"
 )
 
+func (parser *Parser) OutputFileSet(name string) error {
+    if parser.output_file != nil{
+        parser.output_file.Close()
+        parser.output_file = nil
+    }
+
+    f, err := os.OpenFile(name,
+        os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+    if err != nil {
+        return err
+    }
+    parser.output_file = f
+    return nil
+}
+
 func (parser *Parser) InitVM(script []byte, name string) error {
 	vm := otto.New()
 	parser.vm = vm
 
-	vm.Set("sanatize", func(in string) string {
+    vm.Set("__SetOutputFile", func (in string) error {
+        return parser.OutputFileSet(in)
+    })
+
+	vm.Set("__StringSanatize", func(in string) string {
 		return parser.SanatizeName(in)
 	})
 
-	/*
-		vm.Set("unicode", func(in string) string {
-			return unicode_string(in)
-		})
-	*/
-
-	vm.Set("sanatize_escapes", func(in string) string {
+	vm.Set("__StringSanatizeEscapes", func(in string) string {
 		return sanatize_map_name(in)
 	})
 
-	vm.Set("convert_int", func(in string) string {
+	vm.Set("__StringConvertInt", func(in string) string {
 		return int_name(in)
 	})
 
-	vm.Set("print", func(call otto.FunctionCall) otto.Value {
+	vm.Set("__print", func(call otto.FunctionCall) otto.Value {
 		m := ""
 		for _, v := range call.ArgumentList {
 			m = fmt.Sprintf("%s%s", m, v.String())
@@ -45,6 +59,20 @@ func (parser *Parser) InitVM(script []byte, name string) error {
 		return otto.Value{}
 	})
 
+	vm.Set("__println", func(call otto.FunctionCall) otto.Value {
+		m := ""
+		for _, v := range call.ArgumentList {
+			m = fmt.Sprintf("%s%s", m, v.String())
+		}
+		if parser.output_file == nil {
+			fmt.Printf("%s\n", m)
+		} else {
+			b := []byte(m)
+			parser.output_file.Write(b)
+			parser.output_file.Write([]byte{10})
+		}
+		return otto.Value{}
+	})
 	name_num := "stats = { "
 	num_name := "stats_name = { "
 	for i := mvdreader.STAT_HEALTH; i < mvdreader.STAT_ACTIVEWEAPON; i++ {
@@ -56,7 +84,7 @@ func (parser *Parser) InitVM(script []byte, name string) error {
 	name_num = name_num + "};"
 	num_name = num_name + "}"
 	s := name_num + num_name
-	_, err := vm.Run(s)
+    _, err := vm.Run(s)
 	if err != nil {
 		return err
 	}
@@ -110,10 +138,10 @@ func (parser *Parser) InitVM(script []byte, name string) error {
 			parser.vm_finish_function = &finish_function
 		}
 	}
-	init_function, err := vm.Get("on_finish")
+	init_function, err := vm.Get("on_init")
 	if err == nil {
 		if init_function != otto.UndefinedValue() {
-			parser.vm_init_function = &finish_function
+			parser.vm_init_function = &init_function
 		}
 	}
 	return nil
@@ -124,8 +152,10 @@ func (parser *Parser) VmDemoInit() error {
 		return nil
 	}
 
-	_, err := parser.vm_frame_function.Call(
-		*parser.vm_init_function)
+	_, err := parser.vm_init_function.Call(
+		*parser.vm_init_function,
+		parser.filename,
+	)
 
 	if err != nil {
 		return err
@@ -139,12 +169,13 @@ func (parser *Parser) VmDemoFrame() error {
 	}
 	_, err := parser.vm_frame_function.Call(
 		*parser.vm_frame_function,
+		parser.mvd.Server,
 		parser.mvd.State,
 		parser.mvd.State_last_frame,
 		parser.events,
 		parser.stats,
-		parser.mvd.Server,
 		parser.fragmessagesFrame,
+		parser.PlayersFrameCurrent,
 	)
 	if err != nil {
 		return err
@@ -158,11 +189,11 @@ func (parser *Parser) VmDemoFinished() error {
 	}
 	_, err := parser.vm_finish_function.Call(
 		*parser.vm_finish_function,
+		parser.mvd.Server,
 		parser.mvd.State,
 		parser.stats,
-		parser.mvd.Server,
 		parser.fragmessages,
-		parser.players,
+		parser.PlayersFrameCurrent,
 		parser.mod_parser.State,
 	)
 	if err != nil {
