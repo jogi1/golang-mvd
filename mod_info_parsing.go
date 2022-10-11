@@ -1,7 +1,9 @@
 package main
 
+import "github.com/jogi1/mvdreader"
+
 type (
-	ModCheckServerinfoFunction func(map[string]string) bool
+	ModCheckServerinfoFunction func(map[string]mvdreader.ReaderString) bool
 	ModFrameFunction           func(*Parser) error
 	ModEndFunction             func(*Parser) error
 )
@@ -17,13 +19,13 @@ type Mod struct {
 
 func (p *Parser) ModParserPlayerNew(b []byte, stat interface{}) *ModParserPlayer {
 	pl := new(ModParserPlayer)
-	pl.Name = p.ParserStringNew(b)
+	pl.Name = *p.ParserStringNew(b)
 	pl.Stat = stat
 	return pl
 }
 
 type ModParserPlayer struct {
-	Name *ParserString
+	Name ParserString
 	Stat interface{}
 }
 

@@ -3,9 +3,12 @@ package main
 import (
 	"bytes"
 	"fmt"
+
 	//"os"
 	"regexp"
 	"strings"
+
+	"github.com/jogi1/mvdreader"
 )
 
 type ktxPlayerInfo struct {
@@ -168,11 +171,12 @@ var (
 	}
 )
 
-func KTX_1_4b_Check(serverinfo map[string]string) bool {
-	ktxver, found := serverinfo["ktxver"]
+func KTX_1_4b_Check(serverinfo map[string]mvdreader.ReaderString) bool {
+	ktxver_rs, found := serverinfo["ktxver"]
 	if !found {
 		return false
 	}
+    ktxver := ktxver_rs.String
 	if strings.HasPrefix(ktxver, "1.40") { //"1.40-beta-quakecon-release3" {
 		ktx1bRegexs.start_parsing = regexp.MustCompile("The match is over\n")
 		ktx1bRegexs.team = regexp.MustCompile("Team (.*)\n")
@@ -255,12 +259,12 @@ func KTX_1_4b_Frame(p *Parser) error {
 		}
 
 		if state.state == ktx_state_seeking {
-			if ktx1bRegexs.start_parsing.Match([]byte(m.Message)) {
+			if ktx1bRegexs.start_parsing.Match(m.Message.Byte) {
 				state.state = ktx_state_collecting
 			}
 			continue
 		}
-		_, err := state.buffer.Write([]byte(m.Message))
+		_, err := state.buffer.Write(m.Message.Byte)
 		if err != nil {
 			return err
 		}
@@ -754,7 +758,7 @@ func KTX_1_4b_End(p *Parser) error {
 	}
     for _, kt := range state.Teams {
         for _, kp := range kt.Players {
-            pp := p.FindPlayer(kp.Name, kt.Name) 
+            pp := p.FindPlayer(kp.Name.Byte, kt.Name.Byte) 
             if pp != nil {
                 pp.ModStats = kp.Stat
             }

@@ -6,7 +6,7 @@ func (parser *Parser) handlePlayerDisconnects() {
 		if p.Spectator == true {
 			continue
 		}
-		if len(p.Name) == 0 {
+		if len(p.Name.String) == 0 {
 			continue
 		}
 

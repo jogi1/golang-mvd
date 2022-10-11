@@ -4,8 +4,8 @@ import "bytes"
 
 type ParserString struct {
 	p      *Parser
-	String string
-	Byte   []byte
+	String string `json:"string"`
+	Byte   []byte `json:"byte"`
 }
 
 func (ps *ParserString) Equal(c *ParserString) bool {

@@ -14,64 +14,8 @@ import (
 	"github.com/jogi1/golang-fragfile"
 	"github.com/jogi1/mvdreader"
 	"github.com/robertkrimen/otto"
+    "github.com/bodgit/sevenzip"
 )
-
-type Weapon_Stat struct {
-	Pickup, Drop, Damage int
-}
-
-type Armor_Stat struct {
-	Pickup, Damage_Absorbed int
-}
-
-type Item_Stat struct {
-	Pickup, Drop int
-}
-
-type Stats struct {
-	Axe, Shotgun, SuperShotgun, NailGun, SuperNailGun, GrenadeLauncher, RocketLauncher, LightningGun Weapon_Stat
-	GreenArmor, YellowArmor, RedArmor                                                                Armor_Stat
-	MegaHealth, Quad, Pentagram, Ring                                                                Item_Stat
-	Kills, Deaths, Suicides, Teamkills                                                               int
-}
-
-//go:generate stringer -type=Event_Type
-type Event_Type uint
-
-const (
-	EPT_Spawn Event_Type = iota
-	EPT_Death
-	EPT_Suicide
-	EPT_Kill
-	EPT_Teamkill
-	EPT_Pickup
-	EPT_Drop
-)
-
-// EPT_Spawn, EPT_Death, EPT_Suicide
-type Event_Player struct {
-	Type          Event_Type
-	Player_Number int
-}
-
-// EPT_Kill, EPT_Teamkill
-type Event_Player_Kill struct {
-	Type          Event_Type
-	Player_Number int
-}
-
-type Event_Player_Item struct {
-	Type          Event_Type
-	Player_Number int
-	Item_Type     mvdreader.IT_TYPE
-}
-
-type Event_Player_Stat struct {
-	Type          Event_Type
-	Player_Number int
-	Stat          mvdreader.STAT_TYPE
-	Amount        int
-}
 
 type Parser struct {
 	Flags               ParserFlags
@@ -86,6 +30,7 @@ type Parser struct {
 	ascii_table         []rune
 	stats               map[int]*Stats
 	filename            string
+	compressed_filename string
 	output_file         *os.File
 	fragfile            *fragfile.Fragfile
 	fragmessagesFrame   []*fragfile.FragMessage
@@ -98,13 +43,15 @@ type Parser struct {
 }
 
 type JsonDump struct {
-	Mvd                *mvdreader.Mvd
-	Stats              map[int]*Stats
-	Filename           string
-	Fragmessages       []*fragfile.FragMessage
-	Players            map[int]mvdreader.Player
-	ModParserInfo      interface{}
-	PlayersAccumulated []*ParserPlayer
+    Mvd                *mvdreader.Mvd `json:"mvd"`
+    Stats              map[int]*Stats `json:"stats"`
+    Filename           string `json:"filename"`
+    CompressedFilename string`json:"compressed_filename"`
+    FragMessages       []*fragfile.FragMessage `json:"frag_messages"`
+    Players            map[int]mvdreader.Player `json:"frag_players"`
+    ModParserInfo      interface{} `json:"mod_parser_information"`
+    PlayersAccumulated []*ParserPlayer `json:"players_accumulated"`
+
 }
 
 func (parser *Parser) init() {
@@ -135,7 +82,9 @@ type ParserFlags struct {
 	OutputFile           *string // if not set defaults to stdout
 	Logger               *log.Logger
 	RetainFrames         bool // retain parser frames
-	WpsParserEnabled     bool // retain parser frames
+	WpsParserEnabled     bool // ktx wps parsing
+    StatsEnabled         bool // player stats tracking
+    StatsStrengthEnabled bool // player strength calculation
 }
 
 func ParserNew(flags ParserFlags) (*Parser, error) {
@@ -224,17 +173,18 @@ func ParserNew(flags ParserFlags) (*Parser, error) {
 }
 
 func (p *Parser) LoadFile(filename string) error {
-    p.filename = filename
+	p.filename = filename
 	read_file, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
 	}
-	return p.LoadByte(read_file, filename)
+	return p.LoadByte(read_file, filename, "")
 }
 
-func (p *Parser) LoadByte(demo []byte, filename string) error {
-    p.filename = filename
-	err, mvd := mvdreader.Load(demo, p.logger)
+func (p *Parser) LoadByte(demo []byte, filename string, compressed_filename string) error {
+	p.filename = filename
+	p.compressed_filename = compressed_filename
+	mvd, err := mvdreader.Load(demo, p.logger, nil)
 	if err != nil {
 		return err
 	}
@@ -256,8 +206,8 @@ func (p *Parser) Parse() error {
 			return err
 		}
 
-		err, done := p.mvd.ParseFrame()
-		if err != nil {
+		done, err := p.mvd.ParseFrame()
+		if err != nil && !done {
 			return err
 		}
 		if !p.Flags.PlayerEventsDisabled {
@@ -267,7 +217,7 @@ func (p *Parser) Parse() error {
 
 		if p.Flags.WpsParserEnabled {
 			for _, message := range p.mvd.State.StuffText {
-				p.WpsParserParse(message)
+				p.WpsParserParse(message.String)
 			}
 		}
 
@@ -284,7 +234,7 @@ func (p *Parser) Parse() error {
 
 		if p.fragfile != nil {
 			for _, message := range p.mvd.State.Messages {
-				fm, err := p.fragfile.ParseMessage(message.Message)
+				fm, err := p.fragfile.ParseMessage(message.Message.String)
 				if err != nil {
 					return err
 				}
@@ -337,12 +287,17 @@ func main() {
 	fragfile := flag.String("fragfile", "", "fragfile to use for parsing frag messages")
 	output_file := flag.String("output_file", "stdout", "output target")
 	retain_frames := flag.Bool("retain_frames", false, "retain parser frames")
-	aggregatePlayerInfo := flag.Bool("aggregate_player_info", true, "aggregate all possible info sources in a player")
-	wpsParserEnabled := flag.Bool("wps_parser_enabled", true, "enable /wps parsing, very expensive")
+	aggregatePlayerInfo := flag.Bool("aggregate_player_info", false, "aggregate all possible info sources in a player")
+	wpsParserEnabled := flag.Bool("wps_parser_enabled", false, "enable /wps parsing, very expensive")
+
+	statsEnabled := flag.Bool("stats_enabled", false, "enable player stat tracking")
+	statsStrengthEnabled := flag.Bool("stats_strength_enabled", false, "enable player strength calculation")
 
 	flag.Parse()
 
 	var parserFlags ParserFlags
+	parserFlags.StatsEnabled = *statsEnabled
+	parserFlags.StatsStrengthEnabled = *statsStrengthEnabled
 	parserFlags.WpsParserEnabled = *wpsParserEnabled
 	parserFlags.AggregatePlayerInfo = *aggregatePlayerInfo
 	parserFlags.Debug = *debug
@@ -370,68 +325,97 @@ func main() {
 	}
 
 	for _, filename := range flag.Args() {
-		// read zip files
-		r, err := zip.OpenReader(filename)
+		zip_reader, err := zip.OpenReader(filename)
 		if err == nil {
-			defer r.Close()
-			f := r.File[0]
-			rc, err := f.Open()
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			buf := bytes.NewBuffer(nil)
-			io.Copy(buf, rc)
+			defer zip_reader.Close()
+            for _, f := range zip_reader.File {
+                rc, err := f.Open()
+                if err != nil {
+                    fmt.Println(err)
+                    os.Exit(1)
+                }
+                buf := bytes.NewBuffer(nil)
+                io.Copy(buf, rc)
 
-			err = parser.LoadByte(buf.Bytes(), f.FileInfo().Name())
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-		} else {
-			read_file, err := ioutil.ReadFile(filename)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			err = parser.LoadByte(read_file, filename)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
+                err = parse_demo(parser, buf.Bytes(), f.FileInfo().Name(), filename)
+                if err != nil {
+                    fmt.Println(err)
+                    os.Exit(1)
+                }
+            }
+            os.Exit(0)
+        }
 
-		}
+        sz_reader, err := sevenzip.OpenReader(filename)
+        if err == nil {
+            defer sz_reader.Close()
+            for _, f := range sz_reader.File {
+                file_reader, err := f.Open()
+                if err != nil {
+                    fmt.Println(err)
+                    os.Exit(1)
+                }
+                buf := bytes.NewBuffer(nil)
+                io.Copy(buf, file_reader)
 
-		err = parser.Parse()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+                err = parse_demo(parser, buf.Bytes(), f.FileInfo().Name(), filename)
+                if err != nil {
+                    fmt.Println(err)
+                    os.Exit(1)
+                }
+            }
+            os.Exit(0)
+        }
 
-		if parser.vm == nil || parser.Flags.JsonDump {
-			var jsonS JsonDump
-			jsonS.Filename = parser.filename
-			jsonS.Mvd = &parser.mvd
-			jsonS.Stats = parser.stats
-			jsonS.Fragmessages = parser.fragmessages
-			jsonS.Players = parser.players
-			jsonS.PlayersAccumulated = parser.PlayersFrameCurrent
+        read_file, err := ioutil.ReadFile(filename)
+        if err != nil {
+            fmt.Println(err)
+            os.Exit(1)
+        }
+        err = parse_demo(parser, read_file, filename, "")
+        if err != nil {
+            fmt.Println(err)
+            os.Exit(1)
+        }
 
-			if parser.mod_parser != nil {
-				jsonS.ModParserInfo = parser.mod_parser.State
-			}
-			js, err := json.MarshalIndent(jsonS, "", "\t")
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			if parser.output_file != nil {
-				parser.output_file.Write(js)
-				parser.output_file.Close()
-			} else {
-				fmt.Println(string(js))
-			}
-		}
-	}
-	os.Exit(0)
+    }
+    os.Exit(0)
+}
+
+func parse_demo(parser *Parser , demo []byte, file_name string, compressed_filename string) error {
+    err := parser.LoadByte(demo, file_name, compressed_filename)
+    if err != nil {
+        return err;
+    }
+
+    err = parser.Parse()
+    if err != nil {
+        return err;
+    }
+
+    if parser.vm == nil || parser.Flags.JsonDump {
+        var jsonS JsonDump
+        jsonS.Filename = parser.filename
+        jsonS.CompressedFilename = parser.compressed_filename
+        jsonS.Mvd = &parser.mvd
+        jsonS.Stats = parser.stats
+        jsonS.FragMessages = parser.fragmessages
+        jsonS.Players = parser.players
+        jsonS.PlayersAccumulated = parser.PlayersFrameCurrent
+
+        if parser.mod_parser != nil {
+            jsonS.ModParserInfo = parser.mod_parser.State
+        }
+        js, err := json.MarshalIndent(jsonS, "", "\t")
+        if err != nil {
+            return err
+        }
+        if parser.output_file != nil {
+            parser.output_file.Write(js)
+            parser.output_file.Close()
+        } else {
+            fmt.Println(string(js))
+        }
+    }
+    return nil
 }

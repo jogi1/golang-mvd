@@ -1,15 +1,18 @@
 package main
 
-import fragfile "github.com/jogi1/golang-fragfile"
+import (
+    fragfile "github.com/jogi1/golang-fragfile"
+	"github.com/jogi1/mvdreader"
+)
 
 type ParserPlayer struct {
 	pnum              int
-	Name              *ParserString
-	Team              *ParserString
-	ParserStats       *Stats                // `json:",omitempty"`
-	FragmessagesStats *fragfile.FragMessage // `json:",omitempty"`
-	ModStats          interface{}           // `json:",omitempty"`
-	WpsStats          map[string]WpsStats   // `json:",omitempty"`
+	Name              mvdreader.ReaderString `json:"name"`
+	Team              mvdreader.ReaderString `json:"team"`
+	ParserStats       *Stats `json:"parser_stats,omitempty"`
+	FragmessagesStats *fragfile.FragMessage `json:"frag_messages_stats,omitempty"`
+	ModStats          interface{} `json:"mod_stats,omitempty"`
+	WpsStats          map[string]WpsStats `json:"wps_stats,omitempty"`
 }
 
 func (p *Parser) FindPlayerPnum(pnum int) *ParserPlayer {
@@ -21,7 +24,7 @@ func (p *Parser) FindPlayerPnum(pnum int) *ParserPlayer {
     return nil
 }
 
-func (p *Parser) FindPlayer(name, team *ParserString) *ParserPlayer {
+func (p *Parser) FindPlayer(name, team interface{}) *ParserPlayer {
 	if name == nil {
 		return nil
 	}
@@ -40,18 +43,21 @@ func (p *Parser) FindPlayer(name, team *ParserString) *ParserPlayer {
 }
 
 func (p *Parser) PlayersNewFrame() error {
+    if !p.Flags.AggregatePlayerInfo {
+        return nil
+    }
 	p.PlayersFrameLast = p.PlayersFrameCurrent
 	p.PlayersFrameCurrent = nil
 	for i, player := range p.mvd.State.Players {
 		if player.Spectator {
 			continue
 		}
-		if len(player.Name) == 0 {
+		if len(player.Name.String) == 0 {
 			continue
 		}
 		parserPlayer := new(ParserPlayer)
-		parserPlayer.Name = p.ParserStringNew([]byte(player.Name))
-		parserPlayer.Team = p.ParserStringNew([]byte(player.Team))
+		parserPlayer.Name = player.Name
+		parserPlayer.Team = player.Team
 		parserPlayer.pnum = i
         if p.Flags.WpsParserEnabled {
             player := p.FindPlayerPnum(i)

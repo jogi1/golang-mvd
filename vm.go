@@ -155,6 +155,7 @@ func (parser *Parser) VmDemoInit() error {
 	_, err := parser.vm_init_function.Call(
 		*parser.vm_init_function,
 		parser.filename,
+		parser.compressed_filename,
 	)
 
 	if err != nil {
@@ -187,17 +188,32 @@ func (parser *Parser) VmDemoFinished() error {
 	if parser.vm_finish_function == nil {
 		return nil
 	}
-	_, err := parser.vm_finish_function.Call(
-		*parser.vm_finish_function,
-		parser.mvd.Server,
-		parser.mvd.State,
-		parser.stats,
-		parser.fragmessages,
-		parser.PlayersFrameCurrent,
-		parser.mod_parser.State,
-	)
-	if err != nil {
-		return err
-	}
+    if parser.mod_parser != nil {
+        _, err := parser.vm_finish_function.Call(
+            *parser.vm_finish_function,
+            parser.mvd.Server,
+            parser.mvd.State,
+            parser.stats,
+            parser.fragmessages,
+            parser.PlayersFrameCurrent,
+            parser.mod_parser.State,
+        )
+        if err != nil {
+            return err
+        }
+    } else {
+        _, err := parser.vm_finish_function.Call(
+            *parser.vm_finish_function,
+            parser.mvd.Server,
+            parser.mvd.State,
+            parser.stats,
+            parser.fragmessages,
+            parser.PlayersFrameCurrent,
+            nil,
+        )
+        if err != nil {
+            return err
+        }
+    }
 	return nil
 }
